@@ -1,0 +1,15 @@
+---
+title: "Mara's Analysis"
+author: "Mara Alexeev"
+date: "10/8/2020"
+output: html_document
+---
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+
+```{r}
+covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
+```
+
