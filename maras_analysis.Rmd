@@ -6,10 +6,43 @@ output: html_document
 ---
 ```{r libraries, warning=FALSE, message=FALSE}
 library(tidyverse)
+
 ```
 
 
 ```{r}
 covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
+```
+
+
+```{r clean data}
+clean_data <- covidclass_without_labels %>%
+  mutate(id_cc = `patientID|chief complaint|`) 
+
+clean_data <- clean_data %>%
+  separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+```
+
+
+```{r terms}
+
+to_match <- c("short", "fever", "i l i", "ili", "covid", "HYPOXIA", "DYSPNEA")
+
+
+
+pasted_match <- paste(to_match, collapse = "|")
+```
+
+```{r}
+multi_search <- clean_data %>%
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE)))
+```
+
+```{r}
+count_covid <- multi_search %>%
+  group_by(covid_guess) %>%
+  summarise(count = n())
+
+count_covid
 ```
 
