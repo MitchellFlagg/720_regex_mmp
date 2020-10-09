@@ -26,7 +26,7 @@ clean_data <- clean_data %>%
 
 ```{r terms}
 
-to_match <- c("short", "fever", "i l i", "ili", "covid", "HYPOXIA", "DYSPNEA")
+to_match <- c("short", "fever", "i l i", "ili", "covid", "HYPOXIA", "DYSPNEA", "SOB")
 
 
 
@@ -45,4 +45,9 @@ count_covid <- multi_search %>%
 
 count_covid
 ```
+```{r}
+subset_covid <- multi_search %>%
+  filter(covid_guess == 1)
+```
+
 
