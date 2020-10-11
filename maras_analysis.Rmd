@@ -60,5 +60,10 @@ subset_covid <- multi_search %>%
 #print out original dataset with covid prediction labels and save to csv:
 group_predictions <- multi_search %>% select(id_cc, covid_guess)
 write_csv(group_predictions, "group_predictions.csv")
-group_predictions
+
+#print our guess for how many covid patients - 1320
+print(count_covid$count[2])
+
+#print our output table
+print(group_predictions)
 ```
