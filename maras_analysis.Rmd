@@ -5,40 +5,45 @@ date: "10/8/2020"
 output: html_document
 ---
 ```{r libraries, warning=FALSE, message=FALSE}
+#get relevant libraries
 library(tidyverse)
-
 ```
 
 
 ```{r}
+#read in data and print
 covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
+covidclass_without_labels
 ```
 
 
 ```{r clean data}
+#clean data to seperate strings and IDs and print
 clean_data <- covidclass_without_labels %>%
   mutate(id_cc = `patientID|chief complaint|`) 
 
 clean_data <- clean_data %>%
   separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_data
 ```
 
 
 ```{r terms}
-
+#create list of words likely for covid patient presentation
 to_match <- c("short", "fever", "i l i", "ili", "covid", "HYPOXIA", "DYSPNEA", "SOB")
-
-
 
 pasted_match <- paste(to_match, collapse = "|")
 ```
 
 ```{r}
+#use regex to search for covid likely terms
 multi_search <- clean_data %>%
   mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE)))
 ```
 
 ```{r}
+#count how many in the dataset resulted with covid likely terms
 count_covid <- multi_search %>%
   group_by(covid_guess) %>%
   summarise(count = n())
@@ -46,8 +51,14 @@ count_covid <- multi_search %>%
 count_covid
 ```
 ```{r}
+#create covid only subset
 subset_covid <- multi_search %>%
   filter(covid_guess == 1)
 ```
 
-
+```{r}
+#print out original dataset with covid prediction labels and save to csv:
+group_predictions <- multi_search %>% select(id_cc, covid_guess)
+write_csv(group_predictions, "group_predictions.csv")
+group_predictions
+```
