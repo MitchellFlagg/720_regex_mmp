@@ -7,6 +7,7 @@ output: html_document
 ```{r libraries, warning=FALSE, message=FALSE}
 #get relevant libraries
 library(tidyverse)
+library(forcats)
 ```
 
 
@@ -31,7 +32,7 @@ clean_data
 
 ```{r terms}
 #create list of words likely for covid patient presentation
-to_match <- c("short", "fever", "i l i", "ili", "covid", "HYPOXIA", "DYSPNEA", "SOB")
+to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB")
 
 pasted_match <- paste(to_match, collapse = "|")
 ```
@@ -39,7 +40,10 @@ pasted_match <- paste(to_match, collapse = "|")
 ```{r}
 #use regex to search for covid likely terms
 multi_search <- clean_data %>%
-  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE)))
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE))) 
+
+
+#multi_search$covid_guess <- ifelse(multi_search$cc1 %in% c("GAIT INSTABILITY"), multi_search$covid_guess == 0, multi_search$cc1)
 ```
 
 ```{r}
@@ -59,11 +63,28 @@ subset_covid <- multi_search %>%
 ```{r}
 #print out original dataset with covid prediction labels and save to csv:
 group_predictions <- multi_search %>% select(id_cc, covid_guess)
-write_csv(group_predictions, "group_predictions.csv")
+write_csv(group_predictions, "./analysis/group_predictions.csv")
 
-#print our guess for how many covid patients - 1320
+#print our guess for how many covid patients 
 print(count_covid$count[2])
 
 #print our output table
 print(group_predictions)
+
+
 ```
+```{r}
+
+factored_covid <- subset_covid
+factored_covid$cc1 <- as_factor(factored_covid$cc1)
+
+group_by_cc1 <- factored_covid %>% 
+  group_by(cc1) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(group_by_cc1)
+
+```
+
+

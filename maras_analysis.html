@@ -369,22 +369,126 @@ summary {
 </div>
 
 
-<pre class="r"><code>library(tidyverse)</code></pre>
-<pre class="r"><code>covidclass_without_labels &lt;- read_csv(&quot;data_do_not_alter/covidclass_without_labels.csv&quot;)</code></pre>
+<pre class="r"><code>#get relevant libraries
+library(tidyverse)
+library(forcats)</code></pre>
+<pre class="r"><code>#read in data and print
+covidclass_without_labels &lt;- read_csv(&quot;data_do_not_alter/covidclass_without_labels.csv&quot;)</code></pre>
 <pre><code>## Parsed with column specification:
 ## cols(
 ##   `patientID|chief complaint|` = col_character()
 ## )</code></pre>
-<pre class="r"><code>clean_data &lt;- covidclass_without_labels %&gt;%
+<pre class="r"><code>covidclass_without_labels</code></pre>
+<pre><code>## # A tibble: 9,332 x 1
+##    `patientID|chief complaint|`
+##    &lt;chr&gt;                       
+##  1 1|SHORTNESS OF BREATH|      
+##  2 2|ABNORMAL SODIUM LEVEL|    
+##  3 3||                         
+##  4 4|S/P SYNCOPE|              
+##  5 5|PSYCH EVAL|               
+##  6 6|L RIB PAIN|               
+##  7 7|PALPITATIONS|             
+##  8 8|ASSAULT|                  
+##  9 9|ABD PAIN|                 
+## 10 10|SHORTNESS OF BREATH|     
+## # ... with 9,322 more rows</code></pre>
+<pre class="r"><code>#clean data to seperate strings and IDs and print
+clean_data &lt;- covidclass_without_labels %&gt;%
   mutate(id_cc = `patientID|chief complaint|`) 
 
 clean_data &lt;- clean_data %&gt;%
-  separate(col = id_cc, into = c(&#39;id&#39;, &#39;cc1&#39;, &#39;cc2&#39;), sep = &quot;[|]&quot;, remove = F)</code></pre>
-<pre class="r"><code>to_match &lt;- c(&quot;short&quot;, &quot;fever&quot;, &quot;i l i&quot;, &quot;ili&quot;, &quot;covid&quot;)
+  separate(col = id_cc, into = c(&#39;id&#39;, &#39;cc1&#39;, &#39;cc2&#39;), sep = &quot;[|]&quot;, remove = F)
+
+clean_data</code></pre>
+<pre><code>## # A tibble: 9,332 x 5
+##    `patientID|chief complain~ id_cc               id    cc1                cc2  
+##    &lt;chr&gt;                      &lt;chr&gt;               &lt;chr&gt; &lt;chr&gt;              &lt;chr&gt;
+##  1 1|SHORTNESS OF BREATH|     1|SHORTNESS OF BRE~ 1     &quot;SHORTNESS OF BRE~ &quot;&quot;   
+##  2 2|ABNORMAL SODIUM LEVEL|   2|ABNORMAL SODIUM ~ 2     &quot;ABNORMAL SODIUM ~ &quot;&quot;   
+##  3 3||                        3||                 3     &quot;&quot;                 &quot;&quot;   
+##  4 4|S/P SYNCOPE|             4|S/P SYNCOPE|      4     &quot;S/P SYNCOPE&quot;      &quot;&quot;   
+##  5 5|PSYCH EVAL|              5|PSYCH EVAL|       5     &quot;PSYCH EVAL&quot;       &quot;&quot;   
+##  6 6|L RIB PAIN|              6|L RIB PAIN|       6     &quot;L RIB PAIN&quot;       &quot;&quot;   
+##  7 7|PALPITATIONS|            7|PALPITATIONS|     7     &quot;PALPITATIONS&quot;     &quot;&quot;   
+##  8 8|ASSAULT|                 8|ASSAULT|          8     &quot;ASSAULT&quot;          &quot;&quot;   
+##  9 9|ABD PAIN|                9|ABD PAIN|         9     &quot;ABD PAIN&quot;         &quot;&quot;   
+## 10 10|SHORTNESS OF BREATH|    10|SHORTNESS OF BR~ 10    &quot;SHORTNESS OF BRE~ &quot;&quot;   
+## # ... with 9,322 more rows</code></pre>
+<pre class="r"><code>#create list of words likely for covid patient presentation
+to_match &lt;- c(&quot;short&quot;, &quot;fever&quot;, &quot;i l i&quot;, &quot; ili &quot;, &quot;\\bili\\b&quot;,&quot;influe&quot;, &quot;covid&quot;, &quot;HYPOXIA&quot;, &quot;DYSPNEA&quot;, &quot;SOB&quot;)
 
 pasted_match &lt;- paste(to_match, collapse = &quot;|&quot;)</code></pre>
-<pre class="r"><code>multi_search &lt;- clean_data %&gt;%
-  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE)))</code></pre>
+<pre class="r"><code>#use regex to search for covid likely terms
+multi_search &lt;- clean_data %&gt;%
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE))) 
+
+
+#multi_search$covid_guess &lt;- ifelse(multi_search$cc1 %in% c(&quot;GAIT INSTABILITY&quot;), multi_search$covid_guess == 0, multi_search$cc1)</code></pre>
+<pre class="r"><code>#count how many in the dataset resulted with covid likely terms
+count_covid &lt;- multi_search %&gt;%
+  group_by(covid_guess) %&gt;%
+  summarise(count = n())</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>count_covid</code></pre>
+<pre><code>## # A tibble: 2 x 2
+##   covid_guess count
+##         &lt;int&gt; &lt;int&gt;
+## 1           0  7998
+## 2           1  1334</code></pre>
+<pre class="r"><code>#create covid only subset
+subset_covid &lt;- multi_search %&gt;%
+  filter(covid_guess == 1)</code></pre>
+<pre class="r"><code>#print out original dataset with covid prediction labels and save to csv:
+group_predictions &lt;- multi_search %&gt;% select(id_cc, covid_guess)
+write_csv(group_predictions, &quot;./analysis/group_predictions.csv&quot;)
+
+#print our guess for how many covid patients 
+print(count_covid$count[2])</code></pre>
+<pre><code>## [1] 1334</code></pre>
+<pre class="r"><code>#print our output table
+print(group_predictions)</code></pre>
+<pre><code>## # A tibble: 9,332 x 2
+##    id_cc                    covid_guess
+##    &lt;chr&gt;                          &lt;int&gt;
+##  1 1|SHORTNESS OF BREATH|             1
+##  2 2|ABNORMAL SODIUM LEVEL|           0
+##  3 3||                                0
+##  4 4|S/P SYNCOPE|                     0
+##  5 5|PSYCH EVAL|                      0
+##  6 6|L RIB PAIN|                      0
+##  7 7|PALPITATIONS|                    0
+##  8 8|ASSAULT|                         0
+##  9 9|ABD PAIN|                        0
+## 10 10|SHORTNESS OF BREATH|            1
+## # ... with 9,322 more rows</code></pre>
+<pre class="r"><code>factored_covid &lt;- subset_covid
+factored_covid$cc1 &lt;- as_factor(factored_covid$cc1)
+
+group_by_cc1 &lt;- factored_covid %&gt;% 
+  group_by(cc1) %&gt;%
+  summarise(count = n()) %&gt;%
+  arrange(desc(count))</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>print(group_by_cc1)</code></pre>
+<pre><code>## # A tibble: 15 x 2
+##    cc1                          count
+##    &lt;fct&gt;                        &lt;int&gt;
+##  1 FEVER                          354
+##  2 SHORTNESS OF BREATH            241
+##  3 SOB - SHORTNESS OF BREATH      178
+##  4 DYSPNEA                        174
+##  5 FEVERS                          79
+##  6 SOB                             55
+##  7 SHORT OF BREATHE                44
+##  8 DYSPNEA ON EXERTION             42
+##  9 SHORT OF BREATH                 38
+## 10 ILI                             28
+## 11 DOE - DYSPNEA ON EXERTION       28
+## 12 I L I                           20
+## 13 ILI - INFLUENZE LIKE ILLNESS    20
+## 14 INFLUENZA LIKE ILLNESS          17
+## 15 HYPOXIA                         16</code></pre>
 
 
 
