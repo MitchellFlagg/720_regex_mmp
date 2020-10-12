@@ -416,7 +416,7 @@ clean_data</code></pre>
 ## 10 10|SHORTNESS OF BREATH|    10|SHORTNESS OF BR~ 10    &quot;SHORTNESS OF BRE~ &quot;&quot;   
 ## # ... with 9,322 more rows</code></pre>
 <pre class="r"><code>#create list of words likely for covid patient presentation
-to_match &lt;- c(&quot;short&quot;, &quot;fever&quot;, &quot;i l i&quot;, &quot; ili &quot;, &quot;\\bili\\b&quot;,&quot;influe&quot;, &quot;covid&quot;, &quot;HYPOXIA&quot;, &quot;DYSPNEA&quot;, &quot;SOB&quot;)
+to_match &lt;- c(&quot;short&quot;, &quot;fever&quot;, &quot;i l i&quot;, &quot; ili &quot;, &quot;\\bili\\b&quot;,&quot;influe&quot;, &quot;covid&quot;, &quot;HYPOXIA&quot;, &quot;DYSPNEA&quot;, &quot;SOB&quot;, &quot;cough&quot;, &quot;DOE&quot;)
 
 pasted_match &lt;- paste(to_match, collapse = &quot;|&quot;)</code></pre>
 <pre class="r"><code>#use regex to search for covid likely terms
@@ -434,8 +434,8 @@ count_covid &lt;- multi_search %&gt;%
 <pre><code>## # A tibble: 2 x 2
 ##   covid_guess count
 ##         &lt;int&gt; &lt;int&gt;
-## 1           0  7998
-## 2           1  1334</code></pre>
+## 1           0  7679
+## 2           1  1653</code></pre>
 <pre class="r"><code>#create covid only subset
 subset_covid &lt;- multi_search %&gt;%
   filter(covid_guess == 1)</code></pre>
@@ -445,7 +445,7 @@ write_csv(group_predictions, &quot;./analysis/group_predictions.csv&quot;)
 
 #print our guess for how many covid patients 
 print(count_covid$count[2])</code></pre>
-<pre><code>## [1] 1334</code></pre>
+<pre><code>## [1] 1653</code></pre>
 <pre class="r"><code>#print our output table
 print(group_predictions)</code></pre>
 <pre><code>## # A tibble: 9,332 x 2
@@ -471,24 +471,29 @@ group_by_cc1 &lt;- factored_covid %&gt;%
   arrange(desc(count))</code></pre>
 <pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
 <pre class="r"><code>print(group_by_cc1)</code></pre>
-<pre><code>## # A tibble: 15 x 2
+<pre><code>## # A tibble: 20 x 2
 ##    cc1                          count
 ##    &lt;fct&gt;                        &lt;int&gt;
 ##  1 FEVER                          354
-##  2 SHORTNESS OF BREATH            241
-##  3 SOB - SHORTNESS OF BREATH      178
-##  4 DYSPNEA                        174
-##  5 FEVERS                          79
-##  6 SOB                             55
-##  7 SHORT OF BREATHE                44
-##  8 DYSPNEA ON EXERTION             42
-##  9 SHORT OF BREATH                 38
-## 10 ILI                             28
-## 11 DOE - DYSPNEA ON EXERTION       28
-## 12 I L I                           20
-## 13 ILI - INFLUENZE LIKE ILLNESS    20
-## 14 INFLUENZA LIKE ILLNESS          17
-## 15 HYPOXIA                         16</code></pre>
+##  2 COUGH                          248
+##  3 SHORTNESS OF BREATH            241
+##  4 SOB - SHORTNESS OF BREATH      178
+##  5 DYSPNEA                        174
+##  6 FEVERS                          79
+##  7 SOB                             55
+##  8 COUGH/CONGESTION                54
+##  9 SHORT OF BREATHE                44
+## 10 DYSPNEA ON EXERTION             42
+## 11 SHORT OF BREATH                 38
+## 12 ILI                             28
+## 13 DOE - DYSPNEA ON EXERTION       28
+## 14 I L I                           20
+## 15 ILI - INFLUENZE LIKE ILLNESS    20
+## 16 INFLUENZA LIKE ILLNESS          17
+## 17 HYPOXIA                         16
+## 18 DOE                             12
+## 19 PRODUCTIVE COUGH                 3
+## 20 Productive cough                 2</code></pre>
 
 
 

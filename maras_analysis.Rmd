@@ -32,7 +32,7 @@ clean_data
 
 ```{r terms}
 #create list of words likely for covid patient presentation
-to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB")
+to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
 
 pasted_match <- paste(to_match, collapse = "|")
 ```
