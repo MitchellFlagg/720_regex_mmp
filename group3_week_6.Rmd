@@ -1,0 +1,275 @@
+---
+title: "Week 6 Analysis"
+author: "Group 3"
+date: "10/19/2020"
+output: html_document
+---
+```{r libraries, warning=FALSE, message=FALSE}
+#get relevant libraries
+library(tidyverse)
+library(forcats)
+library(caret)
+library(lattice)
+library(e1071)
+library(cvms)
+library(broom)    # tidy()
+library(tibble)   # tibble()
+```
+
+
+```{r}
+#read in data and print
+covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
+covidclass_without_labels
+```
+
+
+```{r clean data}
+#clean data to seperate strings and IDs and print
+clean_data <- covidclass_without_labels %>%
+  mutate(id_cc = `patientID|chief complaint|`) 
+
+clean_data <- clean_data %>%
+  separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_data
+```
+
+
+```{r terms}
+#create list of words likely for covid patient presentation
+to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+
+pasted_match <- paste(to_match, collapse = "|")
+```
+
+```{r}
+#use regex to search for covid likely terms
+multi_search <- clean_data %>%
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = cc1, ignore.case = TRUE))) 
+
+
+#multi_search$covid_guess <- ifelse(multi_search$cc1 %in% c("GAIT INSTABILITY"), multi_search$covid_guess == 0, multi_search$cc1)
+```
+
+```{r}
+#count how many in the dataset resulted with covid likely terms
+count_covid <- multi_search %>%
+  group_by(covid_guess) %>%
+  summarise(count = n())
+
+count_covid
+```
+```{r}
+#create covid only subset
+subset_covid <- multi_search %>%
+  filter(covid_guess == 1)
+```
+
+```{r}
+#print out original dataset with covid prediction labels and save to csv:
+group_predictions <- multi_search %>% select(id_cc, covid_guess)
+write_csv(group_predictions, "./analysis/group_predictions.csv")
+
+#print our guess for how many covid patients 
+print(count_covid$count[2])
+
+#print our output table
+print(group_predictions)
+
+
+```
+```{r}
+
+factored_covid <- subset_covid
+factored_covid$cc1 <- as_factor(factored_covid$cc1)
+
+group_by_cc1 <- factored_covid %>% 
+  group_by(cc1) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+print(group_by_cc1)
+
+```
+# Week 6 Assignment 
+
+Briefing
+The COVID-19 pandemic has progressed a month and we now have some testing. Your regex symptom screener was deployed and has moderate success, with a sensitivity of ~45%-51% and positive predictive value of ~11-16%. Now that you have some labels, you are asked to refine your regex parser. 
+
+Learning Objectives
+Demonstrate the advantages of lab notebooks to improve scientific reproducibility
+Understand how error analysis can be used as a data exploration method to better understand the data
+Apply standard NLP tools to reduce the amount of variability in free text
+Weigh the pros / cons of different performance metrics based on the clinical scenario
+Describe the Pareto Principle and how it applies to building NLP based models
+
+Assignment
+Use the UPDATED/NEWLY-PROVIDED .csv file (on Piazza under Labs in the Resource Tab) to refine your data exploration & algorithm based on UPDATED knowledge of “Chief Complaints” & refine your RegEx ‘parser’ based on your data exploration & screen patients for whether they have COVID-19 or not. We have given you labels for 30% of patients. 
+
+
+Perform an error analysis of the top 10 incorrect predictions (i.e. 10 most common false positives and 10 most common false negatives)
+
+Use standard NLP tools to reduce the amount of variability in the text. For example, wildcards, stemming, lemmatization, etc. 
+
+**Deliverables:**
+Lab Notebook - post your code/results same as last week on GitHub, Google CoLab, or other code sharing site. Please implement as a notebook to facilitate reproducibility.
+
+Error analysis of the top 10 false positive and false negative terms
+
+Model Output - same as prior week
+
+Write a paragraph as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+
+Reading material
+Choose one (or find your own if using different software*):
+Explore the text exploration capabilities of JMP: https://wiki.med.harvard.edu/Software/ResearchApplicationDownloads#JMP_Pro 
+^Download here using eCommonsID
+* - Ensure you & your team tries to identify the most familiar/comfortable language or software tool on average across the team as we will be building off of this exercise moving forward (e.g. NLP, machine learning).
+Pareto Principle - wikipedia
+
+
+```{r}
+covidclass_w_30p_labels <- read_csv("data_do_not_alter/covidclass_30_percent_labels.csv")
+covidclass_w_30p_labels
+```
+```{r}
+clean_labeled_data <- covidclass_w_30p_labels %>%
+  mutate(id_label_cc = `patientID|labels|chief complaint|`) 
+
+clean_labeled_data <- clean_labeled_data %>%
+  separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_labeled_data
+```
+
+```{r}
+label_groups <- clean_labeled_data %>%
+  group_by(label) %>%
+  summarise(n())
+
+label_groups
+```
+```{r}
+joined_predictions_labels <- multi_search %>%
+  full_join(clean_labeled_data, by = "id")
+
+names(joined_predictions_labels)
+```
+
+```{r}
+small_data <- joined_predictions_labels %>%
+  select(id, cc1.x, cc2.x, covid_label = label, covid_guess)
+
+
+results_real_guess <- small_data %>%
+  filter(covid_label == "0" | covid_label == "1") 
+
+results_real_guess$covid_label <- as.numeric(results_real_guess$covid_label)
+  
+```
+
+```{r}
+real_and_guess <- results_real_guess %>%
+  group_by(covid_label, covid_guess) %>%
+  summarise(count = n())
+
+real_and_guess
+```
+```{r}
+#Set up case_when to view incorrect predictions
+
+error_analysis <- results_real_guess %>%
+ mutate(results =  case_when(
+    covid_label == 0 & covid_guess == 0 ~ "True Negative",
+    covid_label == 1 & covid_guess == 1 ~ "True Positive",
+    covid_label == 0 & covid_guess == 1 ~ "False Positive",
+    covid_label == 1 & covid_guess == 0 ~ "False Negative"
+  )
+ ) 
+
+error_analysis$results <- as_factor(error_analysis$results)
+
+error_analysis$cc1.x[which(error_analysis$cc1.x == "")] = "No CC provided"
+
+table_results <- error_analysis %>%
+  group_by(results, cc1.x) %>%
+  summarise(count = n())
+
+table_results
+```
+```{r}
+table_results_wide <- table_results %>%
+  pivot_wider(names_from = cc1.x, values_from = count)
+
+table_results_wide
+```
+```{r}
+#Function to sort results by cc
+
+cc_by_results <- function(results_factor, cc_number_to_return) {
+  results_filtered <- table_results %>%
+  filter(results == results_factor)
+  
+  top_cc <- results_filtered%>%
+  group_by(cc1.x) %>%
+  arrange(desc(count)) %>%
+  head(cc_number_to_return)
+  
+
+  return(print(top_cc))
+}
+```
+
+```{r}
+#get top 10 for each category: True Negative
+
+tn_top_cc <- cc_by_results("True Negative", 10)
+
+```
+
+```{r}
+#get top 10 for each category: True Positive
+
+tp_top_cc <- cc_by_results("True Positive", 10)
+```
+
+```{r}
+#get top 10 for each category: False Positive
+
+fp_top_cc <- cc_by_results("False Positive", 10)
+```
+
+```{r}
+#get top 10 for each category: False Negative
+
+fn_top_cc <- cc_by_results("False Negative", 10)
+```
+```{r}
+combined_top_10 <- bind_rows(fn_top_cc, fp_top_cc, tp_top_cc, tn_top_cc)
+
+table_combined <- combined_top_10 %>% 
+  group_by(cc1.x) %>%
+  summarise(results)
+
+table_combined
+
+
+```
+```{r}
+lvs <- c("normal", "abnormal")
+truth <- factor(rep(lvs, times = c(86, 258)),
+                levels = rev(lvs))
+pred <- factor(
+               c(
+                 rep(lvs, times = c(54, 32)),
+                 rep(lvs, times = c(27, 231))),
+               levels = rev(lvs))
+
+xtab <- table(pred, truth)
+
+confusionMatrix(xtab)
+confusionMatrix(pred, truth)
+confusionMatrix(xtab, prevalence = 0.25)
+```
+

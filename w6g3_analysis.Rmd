@@ -1,0 +1,85 @@
+---
+title: "Week 6 with Functions!"
+author: "Group 3"
+date: "10/17/2020"
+output: html_document
+---
+
+```{r libraries, warning=FALSE, message=FALSE}
+#get relevant libraries
+library(tidyverse)
+library(forcats)
+library(caret)
+library(cvms)
+library(broom)    # tidy()
+library(tibble)   # tibble()
+library(here)
+```
+
+```{r functions}
+
+search_assign_by_cc <- function(data, search_terms, column_to_search) {
+  pasted_match <- paste(search_terms, collapse = "|")
+  
+  searched_and_assigned <- data %>%
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = column_to_search, ignore.case = TRUE))) 
+  
+  return(searched_and_assigned)
+}
+
+count_covid <- multi_search %>%
+  group_by(covid_guess) %>%
+  summarise(count = n())
+
+covid_prediction_count <- function(data) {
+  prediction_count <- data %>% 
+  group_by(covid_guess) %>%
+  summarise(count = n())
+  
+  return(prediction_count)
+}
+```
+
+```{r load files}
+#read in data and print
+covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
+covidclass_w_labels <- read_csv("data_do_not_alter/covidclass_30_percent_labels.csv")
+```
+
+```{r clean data}
+
+clean_data <- covidclass_without_labels %>%
+  mutate(id_cc = `patientID|chief complaint|`) 
+
+clean_data <- clean_data %>%
+  separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_labeled_data <- covidclass_w_labels %>%
+  mutate(id_label_cc = `patientID|labels|chief complaint|`) 
+
+clean_labeled_data <- clean_labeled_data %>%
+  separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
+```
+
+```{r}
+cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+
+predicted_covid_1 <- search_assign_by_cc(clean_data, cc_to_match, clean_data$cc1)
+covid_prediction_counts_1 <- covid_prediction_count(predicted_covid_1)
+```
+
+
+**Deliverables:**
+Code available at our github repo
+
+Error analysis of the top 10 false positive and false negative terms
+
+Model Output - same as prior week
+
+Write a paragraph as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+
+
+```{r session information}
+sessionInfo()
+```
+
