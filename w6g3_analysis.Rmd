@@ -28,6 +28,7 @@ library(here)
 library(tidytext)
 library(ggimage)
 library(rsvg)
+library(textstem)
 ```
 
 ```{r custom functions}
@@ -169,6 +170,7 @@ model_1_evaluated
 plot_confusion_matrix(model_1_evaluated, palette = "Greens")
 ```
 
+# Error Analysis
 ```{r}
 cc_by_results(model_1, "True Positive") 
 
@@ -210,7 +212,18 @@ cc_by_results(model_example, "True Negative")
 cc_by_results(model_example, "False Positive") 
 cc_by_results(model_example, "False Negative") 
 ```
+# Search Terms Revised
 
+## Attempt 2
+
+```{r}
+cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+```
+
+
+# New Model Output
+
+## Metric optimization
 
 ### Session Information
 ```{r session information}

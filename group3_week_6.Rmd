@@ -9,11 +9,10 @@ output: html_document
 library(tidyverse)
 library(forcats)
 library(caret)
-library(lattice)
-library(e1071)
 library(cvms)
 library(broom)    # tidy()
 library(tibble)   # tibble()
+library(here)
 ```
 
 
@@ -271,5 +270,11 @@ xtab <- table(pred, truth)
 confusionMatrix(xtab)
 confusionMatrix(pred, truth)
 confusionMatrix(xtab, prevalence = 0.25)
+```
+
+```{r final block with sessioninfo}
+#Keep at end of document
+sessionInfo()
+
 ```
 
