@@ -171,29 +171,39 @@ plot_confusion_matrix(model_1_evaluated, palette = "Greens")
 ```
 
 # Error Analysis
-```{r}
-cc_by_results(model_1, "True Positive") 
+```{r, message = FALSE}
 
-cc_by_results(model_1, "True Negative") 
+tp_model_1 <- cc_by_results(model_1, "True Positive")
+tn_model_1 <- cc_by_results(model_1, "True Negative") 
+fp_model_1 <- cc_by_results(model_1, "False Positive") 
+fn_model_1 <- cc_by_results(model_1, "False Negative") 
 
-cc_by_results(model_1, "False Negative") 
+all_results_model_1 <- bind_rows(tp_model_1, tn_model_1, fp_model_1, fn_model_1)
 
-cc_by_results(model_1, "False Positive") 
+all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = results, values_from = count, values_fill = 0)
+
+all_results_model_1_wide 
 ```
+# Search Terms Revised
+
+## Potential Search Terms
+
+```{r}
+cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
 
 
+```
 
 ## Analysis pipeline
 
-Do not modify this. Copy it and place in new chunk for each set of words used in analysis. Follow directions in each commented line.
-```{r do not modify, eval=FALSE}
+```{r do not modify, eval=FALSE, message=FALSE}
 
 #choose your search terms
-cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+cc_to_match_example <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "flu-like", "HYPOXEMIA")
 
 #change object name. replace each "example" with your model's name. 13 places. Want to figure out a better way to do this.
 
-predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match, clean_data$cc1)
+predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match_example, clean_data$cc1)
 
 covid_prediction_counts_example <- covid_prediction_count(predicted_covid_example)
 covid_prediction_counts_example
@@ -203,23 +213,29 @@ model_example_table <- covid_model_comparison_table(model_example)
 model_example_table
 
 model_example_evaluated <- evaluation_table(model_example)
-model_example_evaluated 
+
 
 plot_confusion_matrix(model_example_evaluated, palette = "Greens")
 
-cc_by_results(model_example, "True Positive")
-cc_by_results(model_example, "True Negative") 
-cc_by_results(model_example, "False Positive") 
-cc_by_results(model_example, "False Negative") 
+tp_model_example <- cc_by_results(model_example, "True Positive")
+tn_model_example <- cc_by_results(model_example, "True Negative") 
+fp_model_example <- cc_by_results(model_example, "False Positive") 
+fn_model_example <- cc_by_results(model_example, "False Negative") 
+
+tp_model_example 
+tn_model_example  
+fp_model_example 
+fn_model_example 
+
+all_results <- bind_rows(tp_model_example, tn_model_example, fp_model_example, fn_model_example)
+
+all_results_wide <- pivot_wider(all_results, names_from = results, values_from = count, values_fill = 0)
+
+comparison_new_model_to_model_1 <- bind_rows(model_example_evaluated, model_1_evaluated)
+
+comparison_new_model_to_model_1
+all_results_wide 
 ```
-# Search Terms Revised
-
-## Attempt 2
-
-```{r}
-cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
-```
-
 
 # New Model Output
 
