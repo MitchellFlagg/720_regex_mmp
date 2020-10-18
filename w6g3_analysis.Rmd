@@ -64,15 +64,7 @@ covid_model_comparison <- function(data_predictions, data_w_labels) {
     covid_prediction = covid_guess
     )
   
-  return(renamed_joined_data)
-}
-
-covid_model_comparison_table <- function(data_with_status_and_prediction){
-  real_and_prediction <- data_with_status_and_prediction %>%
-  group_by(covid_status, covid_prediction) %>%
-  summarise(count = n())
-  
-  error_analysis <- real_and_prediction %>%
+  error_analysis <- renamed_joined_data %>%
  mutate(results =  case_when(
     covid_status == 0 & covid_prediction == 0 ~ "True Negative",
     covid_status == 1 & covid_prediction == 1 ~ "True Positive",
@@ -81,6 +73,14 @@ covid_model_comparison_table <- function(data_with_status_and_prediction){
   )
  )
   return(error_analysis)
+}
+
+covid_model_comparison_table <- function(data_with_status_and_prediction){
+  real_and_prediction <- data_with_status_and_prediction %>%
+  group_by(covid_status, covid_prediction) %>%
+  summarise(count = n())
+  
+   return(real_and_prediction)
 }
 
 evaluation_table <- function(covid_model){
@@ -94,6 +94,22 @@ model_eval <- evaluate(model_basic_table,
                  type = "binomial")
 
 return(model_eval)
+}
+
+#Function to sort results by cc
+
+cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
+  results_filtered <- model %>%
+  filter(results == results_factor)
+  
+  top_cc <- results_filtered%>%
+  group_by(results, cc1.x) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  head(cc_number_to_return)
+  
+
+  return(print(top_cc))
 }
 ```
 
@@ -113,6 +129,8 @@ clean_data <- covidclass_without_labels %>%
 clean_data <- clean_data %>%
   separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
 
+clean_data$cc1[which(clean_data$cc1 == "")] = "No CC provided"
+
 clean_data$cc1 <- as_factor(clean_data$cc1)
 
 clean_labeled_data <- covidclass_w_labels %>%
@@ -120,6 +138,8 @@ clean_labeled_data <- covidclass_w_labels %>%
 
 clean_labeled_data <- clean_labeled_data %>%
   separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_labeled_data$cc1[which(clean_labeled_data$cc1 == "")] = "No CC provided"
 
 clean_labeled_data$cc1 <- as_factor(clean_labeled_data$cc1)
 ```
@@ -143,18 +163,22 @@ model_1_table
 ```
 
 ```{r}
-plot_confusion_matrix(model_1_table,
-                      targets_col = "covid_status",
-                      predictions_col = "covid_prediction",
-                      counts_col = "count")
-```
-
-```{r}
-
 model_1_evaluated <- evaluation_table(model_1)
 model_1_evaluated
 
+plot_confusion_matrix(model_1_evaluated, palette = "Greens")
 ```
+
+```{r}
+cc_by_results(model_1, "True Positive") 
+
+cc_by_results(model_1, "True Negative") 
+
+cc_by_results(model_1, "False Negative") 
+
+cc_by_results(model_1, "False Positive") 
+```
+
 
 
 ## Analysis pipeline
@@ -176,13 +200,15 @@ model_example <- covid_model_comparison(predicted_covid_example, clean_labeled_d
 model_example_table <- covid_model_comparison_table(model_example)
 model_example_table
 
-plot_confusion_matrix(model_example_table,
-                      targets_col = "covid_status",
-                      predictions_col = "covid_prediction",
-                      counts_col = "count")
-
 model_example_evaluated <- evaluation_table(model_example)
 model_example_evaluated 
+
+plot_confusion_matrix(model_example_evaluated, palette = "Greens")
+
+cc_by_results(model_example, "True Positive")
+cc_by_results(model_example, "True Negative") 
+cc_by_results(model_example, "False Positive") 
+cc_by_results(model_example, "False Negative") 
 ```
 
 
