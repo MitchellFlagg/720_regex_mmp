@@ -196,7 +196,7 @@ cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "c
 
 ## Analysis pipeline
 
-```{r do not modify, eval=FALSE, message=FALSE}
+```{r Analysis pipeline, message=FALSE}
 
 #choose your search term vector and paste in this 
 cc_to_match_example <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "weakness", "low pulse ox", "hypoxic", "respiratory distress", "lethargy")
