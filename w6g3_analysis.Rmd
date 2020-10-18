@@ -5,18 +5,32 @@ date: "10/17/2020"
 output: html_document
 ---
 
+**Deliverables:**
+Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.com/MaraAlexeev/720_regex_mmp)
+
+Error analysis of the top 10 false positive and false negative terms
+
+Model Output - same as prior week
+
+Write a paragraph as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+
+
+
 ```{r libraries, warning=FALSE, message=FALSE}
 #get relevant libraries
 library(tidyverse)
 library(forcats)
 library(caret)
 library(cvms)
-library(broom)    # tidy()
-library(tibble)   # tibble()
+library(broom)    
+library(tibble)   
 library(here)
+library(tidytext)
+library(ggimage)
+library(rsvg)
 ```
 
-```{r functions}
+```{r custom functions}
 
 search_assign_by_cc <- function(data, search_terms, column_to_search) {
   pasted_match <- paste(search_terms, collapse = "|")
@@ -27,10 +41,6 @@ search_assign_by_cc <- function(data, search_terms, column_to_search) {
   return(searched_and_assigned)
 }
 
-count_covid <- multi_search %>%
-  group_by(covid_guess) %>%
-  summarise(count = n())
-
 covid_prediction_count <- function(data) {
   prediction_count <- data %>% 
   group_by(covid_guess) %>%
@@ -38,14 +48,63 @@ covid_prediction_count <- function(data) {
   
   return(prediction_count)
 }
+
+covid_model_comparison <- function(data_predictions, data_w_labels) {
+  only_labeled_rows <- data_w_labels %>%
+    filter(label == "0"| label == "1")
+  
+  joined_data <- only_labeled_rows %>%
+  left_join(data_predictions, by = "id") 
+  
+  joined_data$label <- as.numeric(joined_data$label)
+  
+  renamed_joined_data <- joined_data %>% 
+  rename(
+    covid_status = label,
+    covid_prediction = covid_guess
+    )
+  
+  return(renamed_joined_data)
+}
+
+covid_model_comparison_table <- function(data_with_status_and_prediction){
+  real_and_prediction <- data_with_status_and_prediction %>%
+  group_by(covid_status, covid_prediction) %>%
+  summarise(count = n())
+  
+  error_analysis <- real_and_prediction %>%
+ mutate(results =  case_when(
+    covid_status == 0 & covid_prediction == 0 ~ "True Negative",
+    covid_status == 1 & covid_prediction == 1 ~ "True Positive",
+    covid_status == 0 & covid_prediction == 1 ~ "False Positive",
+    covid_status == 1 & covid_prediction == 0 ~ "False Negative"
+  )
+ )
+  return(error_analysis)
+}
+
+evaluation_table <- function(covid_model){
+
+model_basic_table <- data.frame("target" = c(covid_model$covid_status),
+                                  "prediction"= c(covid_model$covid_prediction)) 
+
+model_eval <- evaluate(model_basic_table,
+                 target_col = "target",
+                 prediction_col = "prediction",
+                 type = "binomial")
+
+return(model_eval)
+}
 ```
 
-```{r load files}
+## Load data files
+```{r load files, warning=FALSE, message=FALSE}
 #read in data and print
 covidclass_without_labels <- read_csv("data_do_not_alter/covidclass_without_labels.csv")
 covidclass_w_labels <- read_csv("data_do_not_alter/covidclass_30_percent_labels.csv")
 ```
 
+## Clean Data
 ```{r clean data}
 
 clean_data <- covidclass_without_labels %>%
@@ -54,31 +113,80 @@ clean_data <- covidclass_without_labels %>%
 clean_data <- clean_data %>%
   separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
 
+clean_data$cc1 <- as_factor(clean_data$cc1)
+
 clean_labeled_data <- covidclass_w_labels %>%
   mutate(id_label_cc = `patientID|labels|chief complaint|`) 
 
 clean_labeled_data <- clean_labeled_data %>%
   separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_labeled_data$cc1 <- as_factor(clean_labeled_data$cc1)
 ```
 
-```{r}
+## Initial Search Terms 
+```{r Initial Search Terms, message=FALSE}
 cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
 
 predicted_covid_1 <- search_assign_by_cc(clean_data, cc_to_match, clean_data$cc1)
+
 covid_prediction_counts_1 <- covid_prediction_count(predicted_covid_1)
+covid_prediction_counts_1
+```
+
+## Initial Model Performance
+```{r first model performance}
+
+model_1 <- covid_model_comparison(predicted_covid_1, clean_labeled_data)
+model_1_table <- covid_model_comparison_table(model_1)
+model_1_table
+```
+
+```{r}
+plot_confusion_matrix(model_1_table,
+                      targets_col = "covid_status",
+                      predictions_col = "covid_prediction",
+                      counts_col = "count")
+```
+
+```{r}
+
+model_1_evaluated <- evaluation_table(model_1)
+model_1_evaluated
+
 ```
 
 
-**Deliverables:**
-Code available at our github repo
+## Analysis pipeline
 
-Error analysis of the top 10 false positive and false negative terms
+Do not modify this. Copy it and place in new chunk for each set of words used in analysis. Follow directions in each commented line.
+```{r do not modify, eval=FALSE}
 
-Model Output - same as prior week
+#choose your search terms
+cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
 
-Write a paragraph as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+#change object name. replace each "example" with your model's name. 13 places. Want to figure out a better way to do this.
+
+predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match, clean_data$cc1)
+
+covid_prediction_counts_example <- covid_prediction_count(predicted_covid_example)
+covid_prediction_counts_example
+
+model_example <- covid_model_comparison(predicted_covid_example, clean_labeled_data)
+model_example_table <- covid_model_comparison_table(model_example)
+model_example_table
+
+plot_confusion_matrix(model_example_table,
+                      targets_col = "covid_status",
+                      predictions_col = "covid_prediction",
+                      counts_col = "count")
+
+model_example_evaluated <- evaluation_table(model_example)
+model_example_evaluated 
+```
 
 
+### Session Information
 ```{r session information}
 sessionInfo()
 ```
