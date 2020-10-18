@@ -189,7 +189,7 @@ all_results_model_1_wide
 ## Potential Search Terms
 
 ```{r}
-cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "diarrhea", "weakness")
 
 
 ```
@@ -198,10 +198,10 @@ cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "c
 
 ```{r do not modify, eval=FALSE, message=FALSE}
 
-#choose your search terms
-cc_to_match_example <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "flu-like", "HYPOXEMIA")
+#choose your search term vector and paste in this 
+cc_to_match_example <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "weakness", "low pulse ox", "hypoxic", "respiratory distress", "lethargy")
 
-#change object name. replace each "example" with your model's name. 13 places. Want to figure out a better way to do this.
+#Do not modify anything below here. If needed copy and past into a different chunk and rename any object that has "example" in it to something else. 
 
 predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match_example, clean_data$cc1)
 
@@ -217,10 +217,10 @@ model_example_evaluated <- evaluation_table(model_example)
 
 plot_confusion_matrix(model_example_evaluated, palette = "Greens")
 
-tp_model_example <- cc_by_results(model_example, "True Positive")
-tn_model_example <- cc_by_results(model_example, "True Negative") 
-fp_model_example <- cc_by_results(model_example, "False Positive") 
-fn_model_example <- cc_by_results(model_example, "False Negative") 
+tp_model_example <- cc_by_results(model_example, "True Positive", 50)
+tn_model_example <- cc_by_results(model_example, "True Negative", 50) 
+fp_model_example <- cc_by_results(model_example, "False Positive", 50) 
+fn_model_example <- cc_by_results(model_example, "False Negative", 50) 
 
 tp_model_example 
 tn_model_example  
@@ -234,7 +234,8 @@ all_results_wide <- pivot_wider(all_results, names_from = results, values_from =
 comparison_new_model_to_model_1 <- bind_rows(model_example_evaluated, model_1_evaluated)
 
 comparison_new_model_to_model_1
-all_results_wide 
+examine_false_negatives <- all_results_wide %>% arrange(desc(`False Negative`))
+examine_false_negatives
 ```
 
 # New Model Output
