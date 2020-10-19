@@ -21,8 +21,8 @@ Write a paragraph as to which metric you are trying to optimize for (sensitivity
 library(tidyverse)
 library(forcats)
 library(caret)
-install.packages("rlang")
-install.packages("cvms")
+#install.packages("rlang")
+#install.packages("cvms")
 library(cvms)
 library(broom)    
 library(tibble)   
@@ -243,8 +243,8 @@ examine_false_negatives
 # New Model Output
 
 ```{r}
-
-#write_csv(group_predictions_wk6, "./analysis/group_predictions_wk6.csv")
+group_predictions_wk6 <- predicted_covid_example %>% select(1,6)
+write_csv(group_predictions_wk6, "./analysis/group_predictions_wk6.csv")
 
 ```
 
