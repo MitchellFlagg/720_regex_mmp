@@ -21,6 +21,8 @@ Write a paragraph as to which metric you are trying to optimize for (sensitivity
 library(tidyverse)
 library(forcats)
 library(caret)
+install.packages("rlang")
+install.packages("cvms")
 library(cvms)
 library(broom)    
 library(tibble)   
@@ -240,7 +242,17 @@ examine_false_negatives
 
 # New Model Output
 
+```{r}
+
+#write_csv(group_predictions_wk6, "./analysis/group_predictions_wk6.csv")
+
+```
+
 ## Metric optimization
+
+```{txt}
+We chose to optimize towards sensitivity rather than specificity. This was chosen partially due to clinical/public health considerations and partially as a response to the constraints of the available data and the context of limited information at the specified point in the pandemic. Casting a broader net felt appropriate in the context of a highly contagious and often asymptomatic respiratory illness. False positives are also comparatively unlikely to lead to patient harm in this context –requiring unnecessary isolation – compared to false negatives, which could be much more harmful to other patients and staff. While optimizing for sensitivity, we did also take care to build in precautions against inclusion of similar strings which had no semantic relevance to the symptoms we intended to screen for.
+```
 
 ### Session Information
 ```{r session information}
