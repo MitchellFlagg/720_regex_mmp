@@ -1,0 +1,54 @@
+---
+title: "regex cc"
+author: "Group 3"
+date: "10/19/2020"
+output: html_document
+---
+
+```{r }
+
+search_cc <- function(data, search_terms, column_to_search) {
+  pasted_match <- paste(search_terms, collapse = "|")
+  
+  searched <- data %>%
+  mutate(match = grepl(pattern = pasted_match, x = column_to_search, ignore.case = TRUE)) %>% 
+    filter(match == T) %>% 
+    group_by(cc1) %>% 
+    summarise(n())
+  
+  return(searched)
+}
+
+```
+
+```{r}
+c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+
+c("i l i", " ili ", "\\bili\\b","influe")
+
+c("i l i", "\\bili\\b","flu")
+
+c("fever*", "febrile")
+c("shor", "sob", "hypox")
+c("dyspn", "doe")
+c("resp", "ox")
+```
+
+
+```{r}
+
+practice <- c("resp", "ox")
+
+test_terms <- search_cc(clean_data, practice, clean_data$cc1)
+
+print(test_terms)
+```
+```{r}
+top_tp <- clean_labeled_data %>% 
+  filter(label == 1 | label == 0) %>% 
+  group_by(cc1, label) %>% 
+  summarise(count = n()) %>%
+  arrange(desc(count))
+top_tp
+```
+

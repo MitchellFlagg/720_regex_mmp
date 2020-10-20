@@ -1,31 +1,28 @@
 ---
 title: "Week 6 with Functions!"
-author: "Group 3: Mara Alexeev, Parker Bannister, Mitchell Flagg"
+author: "Group 3"
 date: "10/17/2020"
 output: html_document
 ---
 
 **Deliverables:**
-
 Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.com/MaraAlexeev/720_regex_mmp)
 
-[Error analysis](#eval) of the top 10 false positive and false negative terms
+Error analysis of the top 10 false positive and false negative terms
 
-[Model Output](#output) - same as prior week: group_predictions_wk6.csv
+Model Output - same as prior week
 
-[Write a paragraph](#metric) as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+Write a paragraph as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
 
 
-# Libraries
+
 ```{r libraries, warning=FALSE, message=FALSE}
 #get relevant libraries
 library(tidyverse)
 library(forcats)
-library(caret)
-#install.packages("rlang")
-#install.packages("cvms")
+#library(caret)
 library(cvms)
-library(broom)    
+#library(broom)    
 library(tibble)   
 library(here)
 #library(tidytext)
@@ -34,7 +31,6 @@ library(rsvg)
 #library(textstem)
 ```
 
-# Functions
 ```{r custom functions}
 
 search_assign_by_cc <- function(data, search_terms, column_to_search) {
@@ -149,7 +145,7 @@ clean_labeled_data$cc1[which(clean_labeled_data$cc1 == "")] = "No CC provided"
 clean_labeled_data$cc1 <- as_factor(clean_labeled_data$cc1)
 ```
 
-## Initial Search Terms For Week 5
+## Initial Search Terms 
 ```{r Initial Search Terms, message=FALSE}
 cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
 
@@ -160,7 +156,7 @@ covid_prediction_counts_1
 ```
 
 ## Initial Model Performance
-```{r first model performance, message=FALSE}
+```{r first model performance}
 
 model_1 <- covid_model_comparison(predicted_covid_1, clean_labeled_data)
 model_1_table <- covid_model_comparison_table(model_1)
@@ -174,31 +170,35 @@ model_1_evaluated
 plot_confusion_matrix(model_1_evaluated, palette = "Greens")
 ```
 
-# Error Analysis {#eval}
+# Error Analysis of Top 10
 ```{r, message = FALSE}
 
-tp_model_1 <- cc_by_results(model_1, "True Positive")
-tn_model_1 <- cc_by_results(model_1, "True Negative") 
-fp_model_1 <- cc_by_results(model_1, "False Positive") 
-fn_model_1 <- cc_by_results(model_1, "False Negative") 
+tp_model_1 <- cc_by_results(model_1, "True Positive", 10)
+tn_model_1 <- cc_by_results(model_1, "True Negative", 10) 
+fp_model_1 <- cc_by_results(model_1, "False Positive", 10) 
+fn_model_1 <- cc_by_results(model_1, "False Negative", 10) 
 
 all_results_model_1 <- bind_rows(tp_model_1, tn_model_1, fp_model_1, fn_model_1)
 
 all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = results, values_from = count, values_fill = 0)
 
-#Beyond top ten
-all_results_model_1_wide_tc <-  model_1 %>% 
-  select(id, cc1.x, results) %>% 
-  group_by(cc1.x, results) %>% 
-  summarise(count = n()) %>% 
-  pivot_wider(names_from = results, values_from = count, values_fill = 0) %>% 
-  rowwise() %>% 
-  mutate(total = sum(`True Positive`, `False Negative`, `True Negative`, `False Positive`)) %>% 
-  mutate(condition_present = sum(`True Positive`, `False Negative`)) %>% 
-  mutate(cc_pct_positive = round(condition_present/total * 100)) 
-
-
+all_results_model_1_wide 
 ```
+# Analysis of labeled data
+```{r}
+# tp_model_100 <- cc_by_results(model_1, "True Negative", 100)
+# fn_model_100 <- cc_by_results(model_1, "False Negative", 100) 
+# 
+# all_results_model_100 <- bind_rows(tp_model_100, fn_model_100)
+# 
+# all_results_model_100_wide <- pivot_wider(all_results_model_100, names_from = results, values_from = count, values_fill = 0)
+# 
+# all_results_model_100_wide 
+
+summary_model_1 <- model_1
+```
+
+
 # Search Terms Revised
 
 ## Potential Search Terms
@@ -206,19 +206,17 @@ all_results_model_1_wide_tc <-  model_1 %>%
 ```{r}
 cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "diarrhea", "weakness")
 
-cc_to_match_a2 <- c("fever*","shor", "sob", "hypox", "pnea", "doe", "resp", "pulse ox", "i l i", "\\bili\\b","flu", "cough*", "pneumothorax", "FOUND DOWN", "BODY ACHES", "Chest Pain", "diarrhea", "syncope", "lethargy", "transfer", "CP", "weak", "confusion", "CT", "Tomography", "back pain", "HALLUCINATING")
+
 ```
-
-
 
 ## Analysis pipeline
 
 ```{r Analysis pipeline, message=FALSE}
 
-#chosen search term vector 
-cc_to_match_example <- cc_to_match_a2
+#choose your search term vector and paste in this 
+cc_to_match_example <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "weakness", "low pulse ox", "hypoxic", "respiratory distress", "lethargy")
 
-#Do not modify anything below here.  
+#Do not modify anything below here. If needed copy and past into a different chunk and rename any object that has "example" in it to something else. 
 
 predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match_example, clean_data$cc1)
 
@@ -250,39 +248,17 @@ all_results_wide <- pivot_wider(all_results, names_from = results, values_from =
 
 comparison_new_model_to_model_1 <- bind_rows(model_example_evaluated, model_1_evaluated)
 
-
-examine_false_negatives <- all_results_wide %>% arrange(desc(`False Negative`))
-
 comparison_new_model_to_model_1
-
-#Beyond top ten
-all_results_model_example <-  model_example %>% 
-  select(id, cc1.x, results) %>% 
-  group_by(cc1.x, results) %>% 
-  summarise(count = n()) %>% 
-  pivot_wider(names_from = results, values_from = count, values_fill = 0) %>% 
-  rowwise() %>% 
-  mutate(total = sum(`True Positive`, `False Negative`, `True Negative`, `False Positive`)) %>% 
-  mutate(condition_present = sum(`True Positive`, `False Negative`)) %>% 
-  mutate(cc_pct_positive = round(condition_present/total * 100)) 
-
-model_by_threshold <-  all_results_model_example %>% 
-  filter(cc_pct_positive > 5)
+examine_false_negatives <- all_results_wide %>% arrange(desc(`False Negative`))
+examine_false_negatives
 ```
 
-# New Model Output {#output}
-
+# New Model Output
 ```{r}
-group_predictions_wk6 <- predicted_covid_example %>% select(1,6)
-write_csv(group_predictions_wk6, "./analysis/group_predictions_wk6.csv")
-
+group3_week6_model
 ```
 
-## Metric optimization {#metric}
-
-We chose to optimize towards sensitivity. This was chosen partially due to clinical/public health considerations and partially as a response to the constraints of the available data and the context of limited information at the specified point in the pandemic. Casting a broader net felt appropriate in the context of a highly contagious and often asymptomatic respiratory illness. False positives are also comparatively unlikely to lead to patient harm in this context –requiring unnecessary isolation – compared to false negatives, which could be much more harmful to other patients and staff. While optimizing for sensitivity, we did also take care to build in precautions against inclusion of similar strings which had no semantic relevance to the symptoms we intended to screen for. 
-
-Optimizing for sensitivity has serious draw backs however. Once too many people are flagged as likely COVID positive, the usefulness of test decreases. If the point of the test is help allocate resources such as PPE and isolation rooms, having 50% of your patients flag as likely COVID is perhaps more burdensome than helpful. A high sensitivity test for chief complaint still might useful if another screening step can be applied to that group to further discriminate between those more or less likely to have COVID eg a pulse ox reading or age. 
+## Metric optimization
 
 ### Session Information
 ```{r session information}
