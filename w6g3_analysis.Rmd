@@ -11,7 +11,7 @@ Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.co
 
 [Error analysis](#eval) of the top 10 false positive and false negative terms
 
-[Model Output](#output) - same as prior week: group_predictions_wk6.csv
+[Model Output](#output) - same as prior week: group3_predictions_wk6.csv
 
 [Write a paragraph](#metric) as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
 
@@ -274,7 +274,7 @@ model_by_threshold <-  all_results_model_example %>%
 
 ```{r}
 group_predictions_wk6 <- predicted_covid_example %>% select(1,6)
-write_csv(group_predictions_wk6, "./analysis/group_predictions_wk6.csv")
+write_csv(group_predictions_wk6, "./analysis/group3_predictions_wk6.csv")
 
 ```
 
