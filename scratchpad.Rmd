@@ -32,6 +32,10 @@ c("fever*", "febrile")
 c("shor", "sob", "hypox")
 c("dyspn", "doe")
 c("resp", "ox")
+
+	PNEUMOTHORAX
+
+master <- c("fever*","shor", "sob", "hypox", "dyspn", "doe", "resp", "ox", "i l i", "\\bili\\b","flu", "cough*", "pneumothorax", "FOUND DOWN", "BODY ACHES", "Chest Pain", "diarrhea")
 ```
 
 
