@@ -349,11 +349,12 @@ print(paste("max AUC =", round(max(glmnet_classifier$cvm), 4)))
 
 prep_fun <- tolower
 it_test = tok_fun(prep_fun(test$chief.complaint))
-# turn off progressbar because it won't look nice in rmd
+
+
 it_test = itoken(it_test, ids = test$patientID, progressbar = FALSE)
 it_test
 dtm_test = create_dtm(it_test, vectorizer)
 head(test$labels)
-preds = predict(glmnet_classifier, dtm_test, type = 'response')[,1]
+preds <-  predict(glmnet_classifier, dtm_test, type = 'response')[,1]
 table(test$chief.complaint[preds>0.2])
 ```
