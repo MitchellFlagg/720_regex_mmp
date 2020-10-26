@@ -1,0 +1,361 @@
+---
+title: "Week 6 with Functions!"
+author: "Group 3: Mara Alexeev, Parker Bannister, Mitchell Flagg"
+date: "10/17/2020"
+output: html_document
+---
+
+**Deliverables:**
+
+Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.com/MaraAlexeev/720_regex_mmp)
+
+[Error analysis](#eval) of the top 10 false positive and false negative terms
+
+[Model Output](#output) - same as prior week: group3_predictions_wk6.csv
+
+[Write a paragraph](#metric) as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
+
+
+# Libraries
+```{r libraries, warning=FALSE, message=FALSE}
+#get relevant libraries
+library(tidyverse)
+inst
+library(forcats)
+install.packages("caret")
+library(caret)
+#install.packages("rlang")
+#install.packages("cvms")
+install.packages("cvms")
+library(cvms)
+install.packages("tidyr")
+library(tidyr)
+library(broom)    
+library(tibble)   
+install.packages("here")
+library(here)
+#library(tidytext)
+install.packages("ggimage")
+library(ggimage)
+install.packages("rsvg")
+library(rsvg)
+#library(textstem)
+```
+
+# Functions
+```{r custom functions}
+
+search_assign_by_cc <- function(data, search_terms, column_to_search) {
+  pasted_match <- paste(search_terms, collapse = "|")
+  
+  searched_and_assigned <- data %>%
+  mutate(covid_guess = as.integer(grepl(pattern = pasted_match, x = column_to_search, ignore.case = TRUE))) 
+  
+  return(searched_and_assigned)
+}
+
+covid_prediction_count <- function(data) {
+  prediction_count <- data %>% 
+  group_by(covid_guess) %>%
+  summarise(count = n())
+  
+  return(prediction_count)
+}
+
+covid_model_comparison <- function(data_predictions, data_w_labels) {
+  only_labeled_rows <- data_w_labels %>%
+    filter(label == "0"| label == "1")
+  
+  joined_data <- only_labeled_rows %>%
+  left_join(data_predictions, by = "id") 
+  
+  joined_data$label <- as.numeric(joined_data$label)
+  
+  renamed_joined_data <- joined_data %>% 
+  rename(
+    covid_status = label,
+    covid_prediction = covid_guess
+    )
+  
+  error_analysis <- renamed_joined_data %>%
+ mutate(results =  case_when(
+    covid_status == 0 & covid_prediction == 0 ~ "True Negative",
+    covid_status == 1 & covid_prediction == 1 ~ "True Positive",
+    covid_status == 0 & covid_prediction == 1 ~ "False Positive",
+    covid_status == 1 & covid_prediction == 0 ~ "False Negative"
+  )
+ )
+  return(error_analysis)
+}
+
+covid_model_comparison_table <- function(data_with_status_and_prediction){
+  real_and_prediction <- data_with_status_and_prediction %>%
+  group_by(covid_status, covid_prediction) %>%
+  summarise(count = n())
+  
+   return(real_and_prediction)
+}
+
+evaluation_table <- function(covid_model){
+
+model_basic_table <- data.frame("target" = c(covid_model$covid_status),
+                                  "prediction"= c(covid_model$covid_prediction)) 
+
+model_eval <- evaluate(model_basic_table,
+                 target_col = "target",
+                 prediction_col = "prediction",
+                 type = "binomial")
+
+return(model_eval)
+}
+
+#Function to sort results by cc
+
+cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
+  results_filtered <- model %>%
+  filter(results == results_factor)
+  
+  top_cc <- results_filtered%>%
+  group_by(results, cc1.x) %>%
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>%
+  head(cc_number_to_return)
+  
+
+  return(print(top_cc))
+}
+```
+
+## Load data files
+```{r load files, warning=FALSE, message=FALSE}
+#read in data and print
+covidclass_without_labels <- read.table("../MBI/720/720_regex_mmp/data_do_not_alter/covidclass_without_labels.csv",
+                                        na.strings = "", header = TRUE, sep = "\t")
+#,
+covidclass_w_labels <- read.table("../MBI/720/720_regex_mmp/data_do_not_alter/covidclass_30_percent_labels.csv",
+                                        na.strings = "", header = TRUE, sep = "\t")
+```
+
+## Clean Data
+```{r clean data}
+library(tidyverse)
+colnames(covidclass_without_labels)[1] <- "patientID|chief complaint|"
+clean_data <- covidclass_without_labels %>%
+  mutate(id_cc = `patientID|chief complaint|`) 
+clean_data <- clean_data %>%
+  separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_data$cc1[which(clean_data$cc1 == "")] = "No CC provided"
+
+clean_data$cc1 <- as_factor(clean_data$cc1)
+colnames(covidclass_w_labels)[1] <- "patientID|labels|chief complaint|"
+clean_labeled_data <- covidclass_w_labels %>%
+  mutate(id_label_cc = `patientID|labels|chief complaint|`) 
+
+clean_labeled_data <- clean_labeled_data %>%
+  separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
+
+clean_labeled_data$cc1[which(clean_labeled_data$cc1 == "")] = "No CC provided"
+
+clean_labeled_data$cc1 <- as_factor(clean_labeled_data$cc1)
+```
+
+## Initial Search Terms For Week 5
+```{r Initial Search Terms, message=FALSE}
+cc_to_match <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE")
+
+predicted_covid_1 <- search_assign_by_cc(clean_data, cc_to_match, clean_data$cc1)
+
+covid_prediction_counts_1 <- covid_prediction_count(predicted_covid_1)
+covid_prediction_counts_1
+```
+
+## Initial Model Performance
+```{r first model performance, message=FALSE}
+
+model_1 <- covid_model_comparison(predicted_covid_1, clean_labeled_data)
+model_1_table <- covid_model_comparison_table(model_1)
+model_1_table
+```
+
+```{r}
+model_1_evaluated <- evaluation_table(model_1)
+model_1_evaluated
+
+plot_confusion_matrix(model_1_evaluated, palette = "Greens")
+```
+
+# Error Analysis {#eval}
+```{r, message = FALSE}
+
+tp_model_1 <- cc_by_results(model_1, "True Positive")
+tn_model_1 <- cc_by_results(model_1, "True Negative") 
+fp_model_1 <- cc_by_results(model_1, "False Positive") 
+fn_model_1 <- cc_by_results(model_1, "False Negative") 
+
+all_results_model_1 <- bind_rows(tp_model_1, tn_model_1, fp_model_1, fn_model_1)
+
+all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = results, values_from = count, values_fill = 0)
+
+#Beyond top ten
+all_results_model_1_wide_tc <-  model_1 %>% 
+  select(id, cc1.x, results) %>% 
+  group_by(cc1.x, results) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(names_from = results, values_from = count, values_fill = 0) %>% 
+  rowwise() %>% 
+  mutate(total = sum(`True Positive`, `False Negative`, `True Negative`, `False Positive`)) %>% 
+  mutate(condition_present = sum(`True Positive`, `False Negative`)) %>% 
+  mutate(cc_pct_positive = round(condition_present/total * 100)) 
+
+
+```
+# Search Terms Revised
+
+## Potential Search Terms
+
+```{r}
+cc_to_match_a1 <- c("short", "fever", "i l i", " ili ", "\\bili\\b","influe", "covid", "HYPOXIA", "DYSPNEA", "SOB", "cough", "DOE", "Flu-like symptoms", "chest pain", "hypoxemia", "body aches", "diarrhea", "weakness")
+
+cc_to_match_a2 <- c("fever*","shor", "sob", "hypox", "pnea", "doe", "resp", "pulse ox", "i l i", "\\bili\\b","flu", "cough*", "pneumothorax", "FOUND DOWN", "BODY ACHES", "Chest Pain", "diarrhea", "syncope", "lethargy", "transfer", "CP", "weak", "confusion", "CT", "Tomography", "back pain", "HALLUCINATING")
+```
+
+
+
+## Analysis pipeline
+
+```{r Analysis pipeline, message=FALSE}
+
+#chosen search term vector 
+cc_to_match_example <- cc_to_match_a2
+
+#Do not modify anything below here.  
+
+predicted_covid_example <- search_assign_by_cc(clean_data, cc_to_match_example, clean_data$cc1)
+
+covid_prediction_counts_example <- covid_prediction_count(predicted_covid_example)
+covid_prediction_counts_example
+
+model_example <- covid_model_comparison(predicted_covid_example, clean_labeled_data)
+model_example_table <- covid_model_comparison_table(model_example)
+model_example_table
+
+model_example_evaluated <- evaluation_table(model_example)
+
+
+plot_confusion_matrix(model_example_evaluated, palette = "Greens")
+
+tp_model_example <- cc_by_results(model_example, "True Positive", 50)
+tn_model_example <- cc_by_results(model_example, "True Negative", 50) 
+fp_model_example <- cc_by_results(model_example, "False Positive", 50) 
+fn_model_example <- cc_by_results(model_example, "False Negative", 50) 
+
+tp_model_example 
+tn_model_example  
+fp_model_example 
+fn_model_example 
+
+all_results <- bind_rows(tp_model_example, tn_model_example, fp_model_example, fn_model_example)
+
+all_results_wide <- pivot_wider(all_results, names_from = results, values_from = count, values_fill = 0)
+
+comparison_new_model_to_model_1 <- bind_rows(model_example_evaluated, model_1_evaluated)
+
+
+examine_false_negatives <- all_results_wide %>% arrange(desc(`False Negative`))
+
+comparison_new_model_to_model_1
+
+#Beyond top ten
+all_results_model_example <-  model_example %>% 
+  select(id, cc1.x, results) %>% 
+  group_by(cc1.x, results) %>% 
+  summarise(count = n()) %>% 
+  pivot_wider(names_from = results, values_from = count, values_fill = 0) %>% 
+  rowwise() %>% 
+  mutate(total = sum(`True Positive`, `False Negative`, `True Negative`, `False Positive`)) %>% 
+  mutate(condition_present = sum(`True Positive`, `False Negative`)) %>% 
+  mutate(cc_pct_positive = round(condition_present/total * 100)) 
+
+model_by_threshold <-  all_results_model_example %>% 
+  filter(cc_pct_positive > 5)
+```
+
+# New Model Output {#output}
+
+```{r}
+group_predictions_wk6 <- predicted_covid_example %>% select(1,6)
+write_csv(group_predictions_wk6, "../MBI/720/720_regex_mmp/analysis/group3_predictions_wk6.csv")
+
+```
+
+## Metric optimization {#metric}
+
+We chose to optimize towards sensitivity. This was chosen partially due to clinical/public health considerations and partially as a response to the constraints of the available data and the context of limited information at the specified point in the pandemic. Casting a broader net felt appropriate in the context of a highly contagious and often asymptomatic respiratory illness. False positives are also comparatively unlikely to lead to patient harm in this context –requiring unnecessary isolation – compared to false negatives, which could be much more harmful to other patients and staff. While optimizing for sensitivity, we did also take care to build in precautions against inclusion of similar strings which had no semantic relevance to the symptoms we intended to screen for. 
+
+Optimizing for sensitivity has serious draw backs however. Once too many people are flagged as likely COVID positive, the usefulness of test decreases. If the point of the test is help allocate resources such as PPE and isolation rooms, having 50% of your patients flag as likely COVID is perhaps more burdensome than helpful. A high sensitivity test for chief complaint still might useful if another screening step can be applied to that group to further discriminate between those more or less likely to have COVID eg a pulse ox reading or age. 
+
+### Session Information
+```{r session information}
+sessionInfo()
+```
+
+## Machine learning time
+
+```{r}
+#First vectorize the text
+install.packages('text2vec')
+library(text2vec)
+data("movie_review")
+movie_review
+?setDT
+tok_fun <- word_tokenizer
+dim(covidclass_w_labels)
+covidclass_labels <- read.table("../MBI/720/720_regex_mmp/data_do_not_alter/covidclass_30_percent_labels.tsv",
+                                header = TRUE, sep = "\t")
+sum(is.na(covidclass_labels$labels))
+train_ids <- covidclass_labels$patientID[!is.na(covidclass_labels$labels)]
+test_ids <- covidclass_labels$patientID[is.na(covidclass_labels$labels)]
+head(train_ids)
+head(train)
+train <- covidclass_labels[train_ids,]
+test <- covidclass_labels[test_ids,]
+train$chief.complaint <- as.character(train$chief.complaint)
+names(covidclass_labels)
+covid_train <- itoken(train$chief.complaint,preprocessor = tolower, tokenizer = word_tokenizer,
+                      ids = train_ids, progressbar = FALSE)
+vocab <- create_vocabulary(covid_train)
+train
+vocab
+vectorizer <- vocab_vectorizer(vocab)
+dtm_train = create_dtm(covid_train, vectorizer)
+dtm_train
+install.packages("glmnet")
+library(glmnet)
+NFOLDS = 4
+head(covidclass_labels)
+glmnet_classifier = cv.glmnet(x = dtm_train, y = train$labels, 
+                              family = 'binomial', 
+                              # L1 penalty
+                              alpha = 1,
+                              # interested in the area under ROC curve
+                              type.measure = "auc",
+                              # 5-fold cross-validation
+                              nfolds = NFOLDS,
+                              # high value is less accurate, but has faster training
+                              thresh = 1e-3,
+                              # again lower number of iterations for faster training
+                              maxit = 1e3)
+plot(glmnet_classifier)
+print(paste("max AUC =", round(max(glmnet_classifier$cvm), 4)))
+library(text2vec)
+prep_fun <- tolower
+it_test = tok_fun(prep_fun(test$chief.complaint))
+# turn off progressbar because it won't look nice in rmd
+it_test = itoken(it_test, ids = test$patientID, progressbar = FALSE)
+it_test
+dtm_test = create_dtm(it_test, vectorizer)
+head(test$labels)
+preds = predict(glmnet_classifier, dtm_test, type = 'response')[,1]
+table(test$chief.complaint[preds>0.2])
+```
