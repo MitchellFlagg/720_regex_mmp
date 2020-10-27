@@ -1,7 +1,7 @@
 ---
-title: "Week 6 with Functions!"
+title: "Week 7"
 author: "Group 3: Mara Alexeev, Parker Bannister, Mitchell Flagg"
-date: "10/17/2020"
+date: "10/26/2020"
 output: html_document
 ---
 
@@ -40,9 +40,12 @@ library(ggimage)
 library(rsvg)
 #library(textstem)
 library(text2vec)
+library(data.table)
 
 #install.packages("glmnet")
 library(glmnet)
+library(ROCR)
+library(pROC)
 ```
 
 # Functions
@@ -141,7 +144,7 @@ covidclass_w_labels <- read.table("./data_do_not_alter/covidclass_30_percent_lab
 
 ## Clean Data
 ```{r clean data}
-library(tidyverse)
+
 colnames(covidclass_without_labels)[1] <- "patientID|chief complaint|"
 clean_data <- covidclass_without_labels %>%
   mutate(id_cc = `patientID|chief complaint|`) 
@@ -303,13 +306,13 @@ Optimizing for sensitivity has serious draw backs however. Once too many people 
 sessionInfo()
 ```
 
-## Machine learning time
+## Machine learning time: attempt 1
 
-```{r}
+```{r, evaluate = FALSE}
 #First vectorize the text
+prep_fun <-  tolower
+tok_fun <-  word_tokenizer
 
-
-dim(covidclass_w_labels)
 covidclass_labels <- read.table("./data_do_not_alter/covidclass_30_percent_labels.tsv",
                                                                 header = TRUE, sep = "\t")
 sum(is.na(covidclass_labels$labels))
@@ -324,11 +327,11 @@ names(covidclass_labels)
 covid_train <- itoken(train$chief.complaint,preprocessor = tolower, tokenizer = word_tokenizer,
                       ids = train_ids, progressbar = FALSE)
 vocab <- create_vocabulary(covid_train)
-train
-vocab
+# train
+# vocab
 vectorizer <- vocab_vectorizer(vocab)
 dtm_train = create_dtm(covid_train, vectorizer)
-dtm_train
+#dtm_train
 
 NFOLDS = 4
 head(covidclass_labels)
@@ -355,6 +358,138 @@ it_test = itoken(it_test, ids = test$patientID, progressbar = FALSE)
 it_test
 dtm_test = create_dtm(it_test, vectorizer)
 head(test$labels)
-preds <-  predict(glmnet_classifier, dtm_test, type = 'response')[,1]
-table(test$chief.complaint[preds>0.2])
+preds =  predict(glmnet_classifier, dtm_test, type = 'response')[,1]
+#table(test$chief.complaint[preds>0.2])
 ```
+
+## Second attempt
+Source of example code for text2vec: [https://cran.r-project.org/web/packages/text2vec/vignettes/text-vectorization.html#feature_hashing]
+```{r}
+#Using text2vec example as guide
+
+# Labeled data with week 6 predictions
+
+#Transform to data.table set key to id
+week_6_results <- setDT(model_example)
+
+#clean data for processing
+#Make chief complaints characters (were factors)
+#Rename cc1.x to chief_complaints
+week_6_results$cc1.x <- as.character(week_6_results$cc1.x)
+week_6_results <- week_6_results %>% 
+  rename(chief_complaints = cc1.x)
+
+
+setkey(week_6_results, id)
+
+#Set seed and divid data with labels into test and train data
+set.seed(888)
+all_ids_2 <-  week_6_results$id
+train_ids_2 <- sample(all_ids_2, 1300)
+test_ids_2 <- setdiff(all_ids_2, train_ids_2)
+
+train_2 <-  week_6_results[J(train_ids_2)]
+test_2 <-  week_6_results[J(test_ids_2)]
+
+```
+
+### Vectorization
+```{r}
+# define preprocessing function and tokenization function
+prep_fun <-  tolower
+tok_fun <-  word_tokenizer
+
+it_train_2 <- itoken(train_2$chief_complaints, 
+             preprocessor = prep_fun, 
+             tokenizer = tok_fun, 
+             ids = train$id, 
+             progressbar = FALSE)
+
+vocab_2 <- create_vocabulary(it_train_2)
+```
+
+### Create Document Term Matrix
+```{r}
+vectorizer_2 <- vocab_vectorizer(vocab_2)
+
+dtm_train_2  <-  create_dtm(it_train_2, vectorizer_2)
+```
+
+### Fit first model
+```{r}
+NFOLDS <-  4
+
+glmnet_classifier_2 <-  cv.glmnet(x = dtm_train_2, y = train_2[['covid_status']], 
+                              family = 'binomial', 
+                              # L1 penalty
+                              alpha = 1,
+                              # interested in the area under ROC curve
+                              type.measure = "auc",
+                              # 5-fold cross-validation
+                              nfolds = NFOLDS,
+                              # high value is less accurate, but has faster training
+                              thresh = 1e-3,
+                              # again lower number of iterations for faster training
+                              maxit = 1e3)
+
+```
+
+```{r}
+plot(glmnet_classifier_2)
+```
+
+### Trying model on test data
+```{r}
+
+it_test_2 <-  tok_fun(prep_fun(test_2$chief_complaints))
+
+it_test_2  <-  itoken(it_test_2, ids = test_2$id, progressbar = FALSE)
+         
+
+dtm_test_2 <-  create_dtm(it_test_2, vectorizer_2)
+
+preds_2  <-  predict(glmnet_classifier_2, dtm_test_2, type = 'response')[,1]
+
+```
+
+```{r}
+predict_table <-  data.frame(preds_2)
+predict_with_id <- rownames_to_column(predict_table, var = "id")
+predict_w_id_status <-  predict_with_id %>%
+  left_join(clean_labeled_data, by = "id")
+```
+
+```{r}
+#Source https://rviews.rstudio.com/2019/03/01/some-r-packages-for-roc-curves/
+#Week 7 roc curve with package ROCR
+
+pred_week_7 <- prediction(predict_w_id_status$preds_2, predict_w_id_status$label)
+perf_week_7 <- performance(pred_week_7,"tpr","fpr")
+plot(perf_week_7,colorize=FALSE)
+```
+
+```{r}
+#Week 7 roc curve with package pROC
+
+pROC_obj <- roc(predict_w_id_status$label, predict_w_id_status$preds_2,
+            smoothed = TRUE,
+            # arguments for ci
+            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
+            # arguments for plot
+            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
+            print.auc=TRUE, show.thres=TRUE)
+
+
+sens.ci <- ci.se(pROC_obj)
+plot(sens.ci, type="shape", col="lightblue")
+## Warning in plot.ci.se(sens.ci, type = "shape", col = "lightblue"): Low
+## definition shape.
+plot(sens.ci, type="bars")
+```
+
+```{r}
+group_predictions_wk7 <- predict_w_id_status
+
+write_csv(group_predictions_wk7, "./analysis/group3_predictions_wk7.csv")
+```
+
