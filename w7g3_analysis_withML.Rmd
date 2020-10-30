@@ -557,6 +557,27 @@ week_7_table_evaluted
 ```
 
 ### Error Analysis
+```{r}
+predictions_final_week_7 <-  rename(predictions_final_week_7, covid_status = label) 
+predictions_final_week_7 <-  rename(predictions_final_week_7, covid_prediction = wk_7_pred_label)
+predictions_final_week_7 <-  rename(predictions_final_week_7, cc1.x = cc1)
+
+predictions_final_week_7 <-  predictions_final_week_7 %>% 
+mutate(results =  case_when(
+    covid_status == 0 & covid_prediction == 0 ~ "True Negative",
+    covid_status == 1 & covid_prediction == 1 ~ "True Positive",
+    covid_status == 0 & covid_prediction == 1 ~ "False Positive",
+    covid_status == 1 & covid_prediction == 0 ~ "False Negative"
+  )
+ )
+
+tp_wk_7 <- cc_by_results(predictions_final_week_7, "True Positive")
+tn_wk_7 <- cc_by_results(predictions_final_week_7, "True Negative") 
+fp_wk_7 <- cc_by_results(predictions_final_week_7, "False Positive") 
+fn_wk_7 <- cc_by_results(predictions_final_week_7, "False Negative") 
+
+
+```
 
 
 ```{r}
