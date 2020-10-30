@@ -486,10 +486,83 @@ plot(sens.ci, type="shape", col="lightblue")
 ## definition shape.
 plot(sens.ci, type="bars")
 ```
+### Trying model on all data
+```{r}
+head(clean_labeled_data)
+
+week_7_predictions <-  tok_fun(prep_fun(clean_labeled_data$cc1))
+
+week_7_predictions  <-  itoken(week_7_predictions, ids = week_7_predictions$id, progressbar = FALSE)
+         
+
+dtm_week_7_predictions <-  create_dtm(week_7_predictions, vectorizer_2)
+
+week_7_preds  <-  predict(glmnet_classifier_2, dtm_week_7_predictions, type = 'response')[,1]
+
+```
 
 ```{r}
-group_predictions_wk7 <- predict_w_id_status
+predictions_final_week_7 <-  data.frame(week_7_preds)
+predictions_final_week_7 <- rownames_to_column(predictions_final_week_7, var = "id")
+head(predictions_final_week_7)
+dim(predictions_final_week_7)
 
-write_csv(group_predictions_wk7, "./analysis/group3_predictions_wk7.csv")
+predictions_final_week_7 <- predictions_final_week_7 %>% 
+  left_join(clean_labeled_data, by = "id")
+```
+
+```{r}
+plot_wk_7 <- predictions_final_week_7 %>% 
+  ggplot(aes(week_7_preds)) + geom_histogram()
+
+plot_wk_7
+
+summary(predictions_final_week_7$week_7_preds)
+```
+### Predictions for week 7
+```{r}
+cutoff <- 0.07
+```
+
+We choose `r cutoff` as the cutoff for labeling a chief complaint as positive.
+```{r}
+predictions_final_week_7 <- predictions_final_week_7 %>% 
+  mutate(wk_7_pred_label =
+           case_when(
+             week_7_preds < cutoff ~ 0,
+             week_7_preds >= cutoff ~ 1
+           ))
+```
+
+### Compare models
+```{r}
+#Week 6
+model_example_evaluated
+
+#Week 7 Training data
+
+week_7_stats <- predictions_final_week_7 %>% 
+  filter(label == 0 | label == 1)
+
+week_7_table <- data.frame("target" = c(week_7_stats$label),
+                                  "prediction"= c(week_7_stats$wk_7_pred_label)) 
+
+week_7_table_evaluted <- evaluate(week_7_table,
+                 target_col = "target",
+                 prediction_col = "prediction",
+                 type = "binomial")
+
+week_7_table_evaluted
+
+```
+
+### Error Analysis
+
+
+```{r}
+#Our COVID prediction is labeled in the column "wk_7_pred_label"
+group3_predictions_wk7 <- predictions_final_week_7
+
+write_csv(group3_predictions_wk7, "./analysis/group3_predictions_wk7.csv")
 ```
 
