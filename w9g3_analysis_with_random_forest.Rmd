@@ -1,9 +1,14 @@
 ---
-title: "Week 7"
+title: "Week 9"
 author: "Group 3: Mara Alexeev, Parker Bannister, Mitchell Flagg"
-date: "10/26/2020"
+date: "November 
 output: html_document
 ---
+
+To dos
+-clean up deliverables
+-change everything to week 9 names.
+-combine terms and redo text analysis
 
 **Deliverables:**
 
@@ -11,7 +16,7 @@ Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.co
 
 [Error analysis](#eval) of the top 10 false positive and false negative terms
 
-[Model Output](#output) - same as prior week: group3_predictions_wk6.csv
+[Model Output](#output) - same as prior week: group3_predictions_wk9.csv
 
 [Write a paragraph](#metric) as to which metric you are trying to optimize for (sensitivity, specificity, PPV, NPV, accuracy, or F1-score)
 
@@ -134,37 +139,167 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
 
 ## Load data files
 ```{r load files, warning=FALSE, message=FALSE}
-#read in data and print
-covidclass_without_labels <- read.table("./data_do_not_alter/covidclass_without_labels.csv",
-                                        na.strings = "", header = TRUE, sep = "\t")
-#,
-covidclass_w_labels <- read.table("./data_do_not_alter/covidclass_30_percent_labels.csv",
-                                        na.strings = "", header = TRUE, sep = "\t")
+#read in data
+# covidclass_without_labels <- read.table("./data_do_not_alter/covidclass_without_labels.csv",
+#                                         na.strings = "", header = TRUE, sep = "\t")
+# 
+# covidclass_w_labels <- read.table("./data_do_not_alter/covidclass_30_percent_labels.csv",
+#                                         na.strings = "", header = TRUE, sep = "\t")
+
+covidclass_70percentlabels <- read.table("data_do_not_alter/covidclass_70percentlabels.csv",  na.strings = "", header = TRUE, sep = "|", quote = "", comment.char = "", col.names = c("id", "chief_complaint_1", "chief_complaint_2", "thirty_label", "seventy_label"))
 ```
 
 ## Clean Data
 ```{r clean data}
 
-colnames(covidclass_without_labels)[1] <- "patientID|chief complaint|"
-clean_data <- covidclass_without_labels %>%
-  mutate(id_cc = `patientID|chief complaint|`) 
-clean_data <- clean_data %>%
-  separate(col = id_cc, into = c('id', 'cc1', 'cc2'), sep = "[|]", remove = F)
+#Cleaning rows 4010 and 6713 with extra quotation marks
+covidclass_70percentlabels[4010,1] <- 4010 
+covidclass_70percentlabels[4010,5] <- 0 
+covidclass_70percentlabels[6713,1] <- 6713
+covidclass_70percentlabels[6713,5] <- 0 
 
-clean_data$cc1[which(clean_data$cc1 == "")] = "No CC provided"
+#Making empty chief complaint clearer
+covidclass_70percentlabels$chief_complaint_1[which(is.na(covidclass_70percentlabels$chief_complaint_1))] <-  "No CC provided"
 
-clean_data$cc1 <- as_factor(clean_data$cc1)
-colnames(covidclass_w_labels)[1] <- "patientID|labels|chief complaint|"
-clean_labeled_data <- covidclass_w_labels %>%
-  mutate(id_label_cc = `patientID|labels|chief complaint|`) 
+covidclass_70percentlabels$seventy_label <- as.factor(covidclass_70percentlabels$seventy_label)
+covidclass_70percentlabels$id <- as.numeric(covidclass_70percentlabels$id)
 
-clean_labeled_data <- clean_labeled_data %>%
-  separate(col = id_label_cc, into = c('id', 'label', 'cc1', 'cc2'), sep = "[|]", remove = F)
-
-clean_labeled_data$cc1[which(clean_labeled_data$cc1 == "")] = "No CC provided"
-
-clean_labeled_data$cc1 <- as_factor(clean_labeled_data$cc1)
 ```
+
+
+```{r combine ccs}
+
+#Combine concepts that are similar but different encodings of the same chief complaint to account for different spellings and misspellings or abbreviations
+
+sob_concept <- c("SOB", 	"SOB - SHORTNESS OF BREATH", "SHORT OF BREATH", "SHORT OF BREATHE", "SHORTNESS OF BREATH")
+fever_concept <- c("FEVER", "FEVERS")
+ili_concept <- c("\\bILI\\b", "FLU", "FLU-LIKE SYMPTOMS", "ILI - INFLUENZE LIKE ILLNESS", 	"INFLUENZA LIKE ILLNESS", "INFLUENZA", "I L I")
+cough_concept <- c("COUGH", "COUGH/CONGESTION", "Productive cough", "PRODUCTIVE COUGH")
+hypoxia_concept <- c("HYPOXEMIA", "HYPOXIA", "HYPOXIC")
+dyspnea_concept <- c("DYPNEA", "DYSPNEA")
+doe_concept <- c("DOE - DYSPNEA ON EXERTION", "DYSPNEA ON EXERTION")
+resp_dis_concept <- c("RESP DISTRESS", 	"RESPIRATORY DISTRESS")
+
+combined_cc_data <- covidclass_70percentlabels %>% 
+  mutate(grouped_cc = case_when(
+    chief_complaint_1 %in% sob_concept ~ "shortness of breath",
+    chief_complaint_1 %in% fever_concept ~ "fever",
+    chief_complaint_1 %in% ili_concept ~ "ili",
+    chief_complaint_1 %in% cough_concept ~ "cough",
+    chief_complaint_1 %in% hypoxia_concept ~ "hypoxia",
+    chief_complaint_1 %in% dyspnea_concept ~ "dyspnea",
+    chief_complaint_1 %in% doe_concept ~ "doe",
+    chief_complaint_1 %in% resp_dis_concept ~ "respiratory distress",
+    TRUE                           ~ .$chief_complaint_1
+    )
+  )
+
+week_9_labeled_data <- combined_cc_data %>% 
+  filter(!is.na(seventy_label)) 
+
+
+
+```
+
+
+## Random Forest
+```{r, message= FALSE, warning=FALSE}
+library(randomForest)
+library(caTools)
+
+```
+
+```{r divide to test and train}
+sample <- sample.split(week_9_labeled_data$id, SplitRatio = 0.75)
+
+train  <-  subset(week_9_labeled_data, sample == TRUE)
+test   <-  subset(week_9_labeled_data, sample == FALSE)
+dim(train)
+dim(test)
+```
+```{r }
+
+rf <- randomForest(
+  "grouped_cc" ~ .,
+  data = train
+)
+
+```
+
+
+# Old stuff for reference, delete prior to submission for week 9
+
+
+```{r}
+
+
+#Transform to data.table set key to id
+week_9_to_vec <- setDT(week_9_labeled_data)
+
+setkey(week_9_to_vec, id)
+
+#Set seed and divid data with labels into test and train data
+set.seed(888)
+all_ids_9 <-  week_9_to_vec$id
+train_ids_9 <- sample(all_ids_9, 1300)
+test_ids_9 <- setdiff(all_ids_9, train_ids_9)
+
+train_9 <-  week_9_to_vec[J(train_ids_9)]
+test_9 <-  week_9_to_vec[J(test_ids_9)]
+
+prep_fun <-  tolower
+tok_fun <-  word_tokenizer
+
+it_train_9 <- itoken(train_9$grouped_cc, 
+             preprocessor = prep_fun, 
+             tokenizer = tok_fun, 
+             ids = train_9$id, 
+             progressbar = FALSE)
+
+vocab_9 <- create_vocabulary(it_train_9)
+
+
+# Create Document Term Matrix
+
+vectorizer_9 <- vocab_vectorizer(vocab_9)
+
+dtm_train_9  <-  create_dtm(it_train_9, vectorizer_9)
+
+NFOLDS <-  4
+
+glmnet_classifier_9 <-  cv.glmnet(x = dtm_train_9, y = train_9[['seventy_label']], 
+                              family = 'binomial', 
+                              # L1 penalty
+                              alpha = 1,
+                              # interested in the area under ROC curve
+                              type.measure = "auc",
+                              # 5-fold cross-validation
+                              nfolds = NFOLDS,
+                              # high value is less accurate, but has faster training
+                              thresh = 1e-3,
+                              # again lower number of iterations for faster training
+                              maxit = 1e3)
+
+plot(glmnet_classifier_9)
+```
+```{r}
+it_test_9 <-  tok_fun(prep_fun(test_9$grouped_cc))
+
+it_test_9  <-  itoken(it_test_9, ids = test_9$id, progressbar = FALSE)
+         
+
+dtm_test_9 <-  create_dtm(it_test_9, vectorizer_9)
+
+preds_9  <-  predict(glmnet_classifier_9, dtm_test_9, type = 'response')[,1]
+
+predict_table_9 <-  data.frame(preds_9)
+predict_9_with_id <- rowid_to_column(predict_table_9, var = "id")
+predict_9_w_id_status <-  predict_9_with_id  %>%
+  left_join(week_9_labeled_data, by = "id")
+
+
+```
+
 
 ## Initial Search Terms For Week 5
 ```{r Initial Search Terms, message=FALSE}
