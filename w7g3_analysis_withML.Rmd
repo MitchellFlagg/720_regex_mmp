@@ -44,6 +44,7 @@ library(data.table)
 
 #install.packages("glmnet")
 library(glmnet)
+install.packages("ROCR")
 library(ROCR)
 library(pROC)
 ```
@@ -135,6 +136,8 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
 ## Load data files
 ```{r load files, warning=FALSE, message=FALSE}
 #read in data and print
+setwd("M:/Documents/MBI/720/720_regex_mmp/")
+getwd()
 covidclass_without_labels <- read.table("./data_do_not_alter/covidclass_without_labels.csv",
                                         na.strings = "", header = TRUE, sep = "\t")
 #,
