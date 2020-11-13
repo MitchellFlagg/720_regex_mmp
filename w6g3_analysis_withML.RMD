@@ -20,9 +20,8 @@ Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.co
 ```{r libraries, warning=FALSE, message=FALSE}
 #get relevant libraries
 library(tidyverse)
-inst
 library(forcats)
-install.packages("caret")
+#install.packages("caret")
 library(caret)
 #install.packages("rlang")
 #install.packages("cvms")
@@ -129,10 +128,10 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
 ## Load data files
 ```{r load files, warning=FALSE, message=FALSE}
 #read in data and print
-covidclass_without_labels <- read.table("../MBI/720/720_regex_mmp/data_do_not_alter/covidclass_without_labels.csv",
+covidclass_without_labels <- read.table("/MBI/720/720_regex_mmp/data_do_not_alter/covidclass_without_labels.csv",
                                         na.strings = "", header = TRUE, sep = "\t")
 #,
-covidclass_w_labels <- read.table("../MBI/720/720_regex_mmp/data_do_not_alter/covidclass_30_percent_labels.csv",
+covidclass_w_labels <- read.table("/MBI/720/720_regex_mmp/data_do_not_alter/covidclass_30_percent_labels.csv",
                                         na.strings = "", header = TRUE, sep = "\t")
 ```
 

@@ -601,6 +601,6 @@ print(youden_stat)
 #Our COVID prediction is labeled in the column "wk_7_pred_label"
 group3_predictions_wk7 <- predictions_final_week_7
 
-write_csv(group3_predictions_wk7, "./analysis/group3_predictions_wk7.csv")
+write_csv(group3_predictions_wk7, "./analysis/group3_predictions_wk8.csv")
 ```
 
