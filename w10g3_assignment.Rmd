@@ -14,6 +14,8 @@ Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.co
 [Error analysis](#eval) of the top 10 false positive and false negative terms
 
 Model Output - group3_predictions_wk10.csv
+linear model output:
+xgboost model output: 
 
 
 
@@ -43,6 +45,8 @@ library(rsvg)
 #library(textstem)
 library(text2vec)
 library(data.table)
+require(xgboost)
+require(Matrix)
 
 #install.packages("glmnet")
 #library(glmnet)
@@ -54,7 +58,7 @@ library(SnowballC)
 ```
 
 # Functions
-```{r custom functions}
+```{r custom functions, echo=FALSE}
 
 search_assign_by_cc <- function(data, search_terms, column_to_search) {
   pasted_match <- paste(search_terms, collapse = "|")
@@ -127,7 +131,7 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
   filter(results == results_factor)
   
   top_cc <- results_filtered%>%
-  group_by(results, grouped_cc) %>%
+  group_by(results, cc) %>%
   summarise(count = n()) %>% 
   arrange(desc(count)) %>%
   head(cc_number_to_return)
@@ -139,14 +143,20 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
 
 ## Load data files
 ```{r load files, warning=FALSE, message=FALSE}
-#read in data
-# covidclass_without_labels <- read.table("./data_do_not_alter/covidclass_without_labels.csv",
-#                                         na.strings = "", header = TRUE, sep = "\t")
-# 
-# covidclass_w_labels <- read.table("./data_do_not_alter/covidclass_30_percent_labels.csv",
-#                                         na.strings = "", header = TRUE, sep = "\t")
 
 covidclass_70percentlabels <- read.table("data_do_not_alter/covidclass_70percentlabels.csv",  na.strings = "", header = TRUE, sep = "|", quote = "", comment.char = "", col.names = c("id", "chief_complaint_1", "chief_complaint_2", "thirty_label", "seventy_label"))
+
+cclist <- read_delim("ontology/presentingproblem/CCList.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+qalist <- read_delim("ontology/presentingproblem/QAList.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+concepts <- read_delim("ontology/presentingproblem/concepts.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+relationship <- read_delim("ontology/presentingproblem/relationship.tsv", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
 ```
 
 ## Clean Data
@@ -161,8 +171,23 @@ covidclass_70percentlabels[6713,5] <- 0
 #Making empty chief complaint clearer
 covidclass_70percentlabels$chief_complaint_1[which(is.na(covidclass_70percentlabels$chief_complaint_1))] <-  "No CC provided"
 
-
 covidclass_70percentlabels$id <- as.numeric(covidclass_70percentlabels$id)
+
+#Clean column names and drop unneeded columns
+
+covid_dataset <- covidclass_70percentlabels %>% 
+   mutate(covid_label = case_when(
+    seventy_label == "0" ~ 0,
+    seventy_label == "1" ~ 1
+  )) %>% 
+  rename(cc = chief_complaint_1) %>% 
+  select(c("id", "cc", "covid_label")) 
+```
+
+# New Concept mapping
+
+Must keep the final dataset named covid_dataset to work with further analysis code below.
+```{r}
 
 ```
 
@@ -171,51 +196,46 @@ covidclass_70percentlabels$id <- as.numeric(covidclass_70percentlabels$id)
 
 #Combine concepts that are similar but different encodings of the same chief complaint to account for different spellings and misspellings or abbreviations
 
-sob_concept <- c("SOB", 	"SOB - SHORTNESS OF BREATH", "SHORT OF BREATH", "SHORT OF BREATHE", "SHORTNESS OF BREATH")
-fever_concept <- c("FEVER", "FEVERS")
-ili_concept <- c("\\bILI\\b", "FLU", "FLU-LIKE SYMPTOMS", "ILI - INFLUENZE LIKE ILLNESS", 	"INFLUENZA LIKE ILLNESS", "INFLUENZA", "I L I", "ILI")
-cough_concept <- c("COUGH", "COUGH/CONGESTION", "Productive cough", "PRODUCTIVE COUGH")
-hypoxia_concept <- c("HYPOXEMIA", "HYPOXIA", "HYPOXIC")
-dyspnea_concept <- c("DYPNEA", "DYSPNEA")
-doe_concept <- c("DOE - DYSPNEA ON EXERTION", "DYSPNEA ON EXERTION")
-resp_dis_concept <- c("RESP DISTRESS", 	"RESPIRATORY DISTRESS")
-
-combined_cc_data <- covidclass_70percentlabels %>% 
-  mutate(grouped_cc = case_when(
-    chief_complaint_1 %in% sob_concept ~ "shortness of breath",
-    chief_complaint_1 %in% fever_concept ~ "fever",
-    chief_complaint_1 %in% ili_concept ~ "ili",
-    chief_complaint_1 %in% cough_concept ~ "cough",
-    chief_complaint_1 %in% hypoxia_concept ~ "hypoxia",
-    chief_complaint_1 %in% dyspnea_concept ~ "dyspnea",
-    chief_complaint_1 %in% doe_concept ~ "doe",
-    chief_complaint_1 %in% resp_dis_concept ~ "respiratory distress",
-    TRUE                           ~ .$chief_complaint_1
-    )
-  )
-
-week_9_labeled_data <- combined_cc_data %>% 
-  filter(!is.na(seventy_label)) %>%  
-  mutate(covid_label = case_when(
-    seventy_label == "0" ~ 0,
-    seventy_label == "1" ~ 1
-  ))
+# sob_concept <- c("SOB", 	"SOB - SHORTNESS OF BREATH", "SHORT OF BREATH", "SHORT OF BREATHE", "SHORTNESS OF BREATH")
+# fever_concept <- c("FEVER", "FEVERS")
+# ili_concept <- c("\\bILI\\b", "FLU", "FLU-LIKE SYMPTOMS", "ILI - INFLUENZE LIKE ILLNESS", 	"INFLUENZA LIKE ILLNESS", "INFLUENZA", "I L I", "ILI")
+# cough_concept <- c("COUGH", "COUGH/CONGESTION", "Productive cough", "PRODUCTIVE COUGH")
+# hypoxia_concept <- c("HYPOXEMIA", "HYPOXIA", "HYPOXIC")
+# dyspnea_concept <- c("DYPNEA", "DYSPNEA")
+# doe_concept <- c("DOE - DYSPNEA ON EXERTION", "DYSPNEA ON EXERTION")
+# resp_dis_concept <- c("RESP DISTRESS", 	"RESPIRATORY DISTRESS")
+# 
+# combined_cc_data <- covidclass_70percentlabels %>% 
+#   mutate(grouped_cc = case_when(
+#     chief_complaint_1 %in% sob_concept ~ "shortness of breath",
+#     chief_complaint_1 %in% fever_concept ~ "fever",
+#     chief_complaint_1 %in% ili_concept ~ "ili",
+#     chief_complaint_1 %in% cough_concept ~ "cough",
+#     chief_complaint_1 %in% hypoxia_concept ~ "hypoxia",
+#     chief_complaint_1 %in% dyspnea_concept ~ "dyspnea",
+#     chief_complaint_1 %in% doe_concept ~ "doe",
+#     chief_complaint_1 %in% resp_dis_concept ~ "respiratory distress",
+#     TRUE                           ~ .$chief_complaint_1
+#     )
+#   )
 
 
-week_9_predictions <- combined_cc_data %>% 
-    mutate(covid_label = case_when(
-    seventy_label == "0" ~ 0,
-    seventy_label == "1" ~ 1
-  ))
+```
+
+## Create labeled datasets
+```{r}
+labeled_data <- covid_dataset %>% 
+  filter(!is.na(covid_label)) 
+
 ```
 
 
-
-
+## xgboost analysis pipeline
+# Create a corpus for labeled data
 ```{r corpus creation}
 #https://www.pluralsight.com/guides/machine-learning-text-data-using-r
 
-corpus <-  Corpus(VectorSource(week_9_labeled_data$grouped_cc))
+corpus <-  Corpus(VectorSource(labeled_data$cc))
 corpus[[1]][1]  
 
 corpus <-  tm_map(corpus, PlainTextDocument)
@@ -234,19 +254,20 @@ corpus[[1]][1]
 
 frequencies  <-  DocumentTermMatrix(corpus)
 
-sparse <-  removeSparseTerms(frequencies, 0.995)
+#Choose value for your sparse terms cutoff
+sparse_term_cutoff <- 0.995
+
+sparse <-  removeSparseTerms(frequencies, sparse_term_cutoff)
 
 tSparse <-  as.data.frame(as.matrix(sparse))
 colnames(tSparse) <-  make.names(colnames(tSparse))
 
 columns_to_keep <- colnames(tSparse)
 
-tSparse$covid_label <-  week_9_labeled_data$covid_label
+# Add back covid label to sparse term dataframe 
+tSparse$covid_label <-  labeled_data$covid_label
 ```
-
-```{r}
-prop.table(table(tSparse$covid_label))
-```
+## Test and Train data for xgboost
 ```{r divide to test and train}
 
 set.seed(888)
@@ -257,32 +278,10 @@ testSparse <-  subset(tSparse, split==FALSE)
 
 ```
 
+## Non linear model with xgboost
+
+### Train model
 ```{r}
-
- 
-# k <- 0.99999
-# RF_model  <-  randomForest(covid_label ~ ., data=trainSparse, importance = TRUE, cutoff = c(k, 1-k))
-# varImpPlot(RF_model)
-# 
-# predictRF <-  predict(RF_model, newdata=testSparse)
-# table(testSparse$covid_label, predictRF)
-#  
-
-```
-## Trying something new
-Searching online found that the randomForest() does not work well with sparse data or data with just one variable. Here we try `xgboost`.
-
-```{r, warning=FALSE, message=FALSE}
-require(xgboost)
-require(Matrix)
-require(data.table)
-
-```
-
-```{r}
-
-
-#sparse_matrix <- sparse.model.matrix(covid_label ~ ., data = trainSparse)[,-1]
 
 #Drop the covid_label from being in the training
 data_matrix <- as.matrix(trainSparse[,colnames(trainSparse) != "covid_label"])
@@ -291,16 +290,17 @@ output_vector  <-  as.matrix(trainSparse[,"covid_label"])
 bst <- xgboost(data = data_matrix, label = output_vector, scale_pos_weight = 20, nrounds = 20,objective = "binary:logistic")
 ```
 
-
-
-
+### Use test data
 ```{r}
 
 data_matrix_test <- as.matrix(testSparse[,colnames(testSparse) != "covid_label"])
 
 pred <- predict(bst, data_matrix_test)
 
-prediction <- as.numeric(pred > 0.5)
+
+# Pick a prediction cutoff
+prediction_cutoff <- 0.5
+prediction <- as.numeric(pred > prediction_cutoff)
 ```
 
 ```{r}
@@ -313,10 +313,15 @@ data_and_prediction <-cbind(test_data, prediction)
 
 small_d_and_p <- data_and_prediction %>% 
   select("id", "prediction", "covid_label")
+
+#Small confusion matrix
 table(small_d_and_p$prediction, small_d_and_p$covid_label)
 ```
+
+
+
 ```{r}
-corpus_f <-  Corpus(VectorSource(week_9_predictions$grouped_cc))
+corpus_f <-  Corpus(VectorSource(covid_dataset$cc))
 
 corpus_f <-  tm_map(corpus_f, PlainTextDocument)
 
@@ -338,7 +343,7 @@ full_data_top_columns <- frequencies_f_all_columns %>%
   select(columns_to_keep)
 
 
-full_data_top_columns$covid_label <-  (week_9_predictions$covid_label)
+full_data_top_columns$covid_label <-  (covid_dataset$covid_label)
 
 data_matrix_full <- as.matrix(full_data_top_columns[,colnames(full_data_top_columns) != "covid_label"])
 
@@ -348,28 +353,28 @@ pred_full <- data.frame(pred_full)
 
 ## Predicted probabilities and cutoff
 ```{r}
-week_9_predictions$predictions <- pred_full$pred_full
+covid_dataset$model_predictions <- pred_full$pred_full
 
-cut_off_w9 <- 0.5
-week_9_predictions <- week_9_predictions %>% 
-  mutate(final_prediction_w9 = case_when(
-    predictions >= cut_off_w9 ~ 1,
-    predictions < cut_off_w9 ~ 0,
+covid_dataset <- covid_dataset %>% 
+  mutate(final_predictions = case_when(
+    model_predictions >= prediction_cutoff ~ 1,
+    model_predictions < prediction_cutoff ~ 0,
   ))
 
-week_9_predictions_errors <- week_9_predictions %>% 
+predictions_errors <- covid_dataset %>% 
   filter(!is.na(covid_label))
 
-table(week_9_predictions_errors$covid_label, week_9_predictions_errors$final_prediction_w9)
+table(predictions_errors$covid_label, predictions_errors$final_predictions)
 ```
 ## ROC curves
 ```{r}
-pred_week_9 <- prediction(week_9_predictions_errors$final_prediction_w9, week_9_predictions_errors$covid_label)
-perf_week_9 <- performance(pred_week_9,"tpr","fpr")
-plot(perf_week_9,colorize=FALSE)
+prediction_xgboost_model <- prediction(predictions_errors$final_predictions, predictions_errors$covid_label)
+
+performance_xgboost_model <- performance(prediction_xgboost_model,"tpr","fpr")
+plot(performance_xgboost_model,colorize=FALSE)
 ```
 ```{r}
-pROC_obj <- roc(week_9_predictions_errors$final_prediction_w9, week_9_predictions_errors$covid_label,
+pROC_obj <- roc(predictions_errors$final_predictions, predictions_errors$covid_label,
             smoothed = TRUE,
             # arguments for ci
             ci=TRUE, ci.alpha=0.9, stratified=FALSE,
@@ -387,10 +392,10 @@ plot(sens.ci, type="bars")
 
 
 ```{r}
-model_w9 <- data.frame("target" = c(week_9_predictions_errors$covid_label),
-                                  "prediction"= c(week_9_predictions_errors$final_prediction_w9)) 
+model_xgboost <- data.frame("target" = c(predictions_errors$covid_label),
+                                  "prediction"= c(predictions_errors$final_predictions)) 
 
-model_eval_w9 <- evaluate(model_w9,
+model_eval_model_xgboost <- evaluate(model_xgboost,
                  target_col = "target",
                  prediction_col = "prediction",
                  type = "binomial")
@@ -398,11 +403,12 @@ model_eval_w9 <- evaluate(model_w9,
 ```
 
 
-# Comparison to week 8
+# Comparisons
 ```{r}
-model_eval_w9[,1:7]
+model_eval_model_xgboost[,1:7]
 ```
 
+From Peter
 Week 8 results on test: 
 
 
@@ -414,22 +420,17 @@ Week 8 results on test:
 * f1    0.171091445
 
 
-```{r}
-plot_confusion_matrix(model_eval_w9, palette = "Greens")
-```
-
-
 
 # Error Analysis {#eval}
 
 
 ```{r}
-error_analysis <- week_9_predictions_errors %>%
+error_analysis <- predictions_errors %>%
  mutate(results =  case_when(
-    covid_label == 0 & final_prediction_w9 == 0 ~ "True Negative",
-    covid_label == 1 & final_prediction_w9 == 1 ~ "True Positive",
-    covid_label == 0 & final_prediction_w9 == 1 ~ "False Positive",
-    covid_label == 1 & final_prediction_w9 == 0 ~ "False Negative"
+    covid_label == 0 & final_predictions == 0 ~ "True Negative",
+    covid_label == 1 & final_predictions == 1 ~ "True Positive",
+    covid_label == 0 & final_predictions == 1 ~ "False Positive",
+    covid_label == 1 & final_predictions == 0 ~ "False Negative"
   ))
 ```
 
@@ -449,16 +450,13 @@ all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = result
 
 ```
 
-## Thoughts
-
-Overall it seems like a non-linear classifier is more of a black box when it comes to understanding the predicted scores for the different chief complaints. The linear model was easier and faster to build and run. However, because it could oversimplfy the relationship of inputs and responses, it might miss out on more complicated relationships one can find with non-linear models. Non-linear models are however prone to overfitting training data and can then perform much worse than expected on new data inputs.
 
 
-## Model Output
+## xgboost model Output
 ```{r}
-#Our COVID prediction is labeled in the column "final_prediction_w10
-group3_predictions_wk10 <- week_10_predictions 
-write_csv(group3_predictions_wk10, "./analysis/group3_predictions_wk10.csv")
+#Our COVID prediction is labeled in the column final_predictions
+group3_predictions_wk10_xgboost <- covid_dataset 
+write_csv(group3_predictions_wk10_xgboost, "./analysis/group3_predictions_wk10_xgboost")
 ```
 
 ### Session Information
