@@ -13,11 +13,9 @@ Code available at our github repo: [MaraAlexeev/720_regex_mmp](https://github.co
 
 [Error analysis](#eval) of the top 10 false positive and false negative terms
 
-Model Output - group3_predictions_wk10.csv
-linear model output:
-xgboost model output: 
+[Comparisons](#compare)
 
-
+[Model Output](#ouput)
 
 
 # Libraries
@@ -25,31 +23,17 @@ xgboost model output:
 #get relevant libraries
 library(tidyverse)
 library(forcats)
-#install.packages("caret")
-#library(caret)
-#install.packages("rlang")
-#install.packages("cvms")
-#install.packages("cvms")
 library(cvms)
-#install.packages("tidyr")
 library(tidyr)
-#library(broom)    
 library(tibble)   
-#install.packages("here")
 library(here)
-#library(tidytext)
-#install.packages("ggimage")
 library(ggimage)
-#install.packages("rsvg")
 library(rsvg)
-#library(textstem)
 library(text2vec)
 library(data.table)
-require(xgboost)
-require(Matrix)
-
-#install.packages("glmnet")
-#library(glmnet)
+library(xgboost)
+library(Matrix)
+library(glmnet)
 library(ROCR)
 library(pROC)
 library(caTools)
@@ -227,6 +211,8 @@ Must keep the final dataset named covid_dataset to work with further analysis co
 labeled_data <- covid_dataset %>% 
   filter(!is.na(covid_label)) 
 
+labeled_data_for_glmnet <- labeled_data
+
 ```
 
 
@@ -373,22 +359,6 @@ prediction_xgboost_model <- prediction(predictions_errors$final_predictions, pre
 performance_xgboost_model <- performance(prediction_xgboost_model,"tpr","fpr")
 plot(performance_xgboost_model,colorize=FALSE)
 ```
-```{r}
-pROC_obj <- roc(predictions_errors$final_predictions, predictions_errors$covid_label,
-            smoothed = TRUE,
-            # arguments for ci
-            ci=TRUE, ci.alpha=0.9, stratified=FALSE,
-            # arguments for plot
-            plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
-            print.auc=TRUE, show.thres=TRUE)
-
-
-sens.ci <- ci.se(pROC_obj)
-plot(sens.ci, type="shape", col="lightblue")
-## Warning in plot.ci.se(sens.ci, type = "shape", col = "lightblue"): Low
-## definition shape.
-plot(sens.ci, type="bars")
-```
 
 
 ```{r}
@@ -403,11 +373,165 @@ model_eval_model_xgboost <- evaluate(model_xgboost,
 ```
 
 
-# Comparisons
+# Linear Model with glmnet analysis pipeline
+```{r}
+#Using text2vec example as guide
+
+# Labeled data with week 6 predictions
+
+#Transform to data.table set key to id
+glmnet_covid_dataset <- setDT(labeled_data_for_glmnet)
+
+setkey(glmnet_covid_dataset, id)
+
+#Set seed and divid data with labels into test and train data
+set.seed(888)
+all_ids <-  glmnet_covid_dataset$id
+train_ids <- sample(all_ids, 1300)
+test_ids <- setdiff(all_ids, train_ids)
+
+train_glm <-  glmnet_covid_dataset[J(train_ids)]
+test_glm <-  glmnet_covid_dataset[J(test_ids)]
+
+```
+
+### Vectorization
+```{r}
+# define preprocessing function and tokenization function
+prep_fun <-  tolower
+tok_fun <-  word_tokenizer
+
+it_train_glm <- itoken(train_glm$cc, 
+             preprocessor = prep_fun, 
+             tokenizer = tok_fun, 
+             ids = train_glm$id, 
+             progressbar = FALSE)
+
+vocab_glm <- create_vocabulary(it_train_glm)
+```
+
+### Create Document Term Matrix
+```{r}
+vectorizer_glm <- vocab_vectorizer(vocab_glm)
+
+dtm_train_glm  <-  create_dtm(it_train_glm, vectorizer_glm)
+```
+
+### Fit first model
+```{r}
+NFOLDS <-  4
+
+glmnet_classifier <-  cv.glmnet(x = dtm_train_glm, y = train_glm[['covid_label']], 
+                              family = 'binomial', 
+                              # L1 penalty
+                              alpha = 1,
+                              # interested in the area under ROC curve
+                              type.measure = "auc",
+                              # 5-fold cross-validation
+                              nfolds = NFOLDS,
+                              # high value is less accurate, but has faster training
+                              thresh = 1e-3,
+                              # again lower number of iterations for faster training
+                              maxit = 1e3)
+
+```
+
+```{r}
+plot(glmnet_classifier)
+```
+
+### Trying model on test data
+```{r}
+
+it_test_glm <-  tok_fun(prep_fun(test_glm$cc))
+
+it_test_glm  <-  itoken(it_test_glm, ids = test_glm$id, progressbar = FALSE)
+         
+
+dtm_test_glm <-  create_dtm(it_test_glm, vectorizer_glm)
+
+preds_glm  <-  predict(glmnet_classifier, dtm_test_glm, type = 'response')[,1]
+
+```
+
+```{r}
+predict_table_glm <-  data.frame(preds_glm)
+predict_with_id <- rownames_to_column(predict_table_glm, var = "id")
+predict_with_id$id <- as.numeric(predict_with_id$id)
+predict_w_id_status <-  predict_with_id %>%
+  left_join(labeled_data_for_glmnet, by = "id")
+```
+
+```{r}
+#Source https://rviews.rstudio.com/2019/03/01/some-r-packages-for-roc-curves/
+
+pred_glm <- prediction(predict_w_id_status$preds_glm, predict_w_id_status$covid_label)
+perf_glm <- performance(pred_glm,"tpr","fpr")
+plot(perf_glm,colorize=FALSE)
+
+```
+```{r}
+preds_glm_final <-  tok_fun(prep_fun(covid_dataset$cc))
+
+preds_glm_final  <-  itoken(preds_glm_final, ids = preds_glm_final$id, progressbar = FALSE)
+         
+
+dtm_week_glm_final <-  create_dtm(preds_glm_final, vectorizer_glm)
+
+preds_glm_final  <-  predict(glmnet_classifier, dtm_week_glm_final, type = 'response')[,1]
+
+preds_glm_final <-  data.frame(preds_glm_final)
+preds_glm_final <- rownames_to_column(preds_glm_final, var = "id")
+preds_glm_final$id <- as.numeric(preds_glm_final$id)
+preds_glm_final <-  preds_glm_final %>%
+  left_join(labeled_data_for_glmnet, by = "id")
+
+plot_glm_final <- preds_glm_final %>% 
+  ggplot(aes(preds_glm_final)) + geom_histogram()
+
+plot_glm_final
+
+summary(preds_glm_final$preds_glm_final)
+```
+```{r}
+cutoff_glm <- 0.07
+```
+
+We choose `r cutoff_glm` as the cutoff for labeling a chief complaint as positive.
+```{r}
+preds_glm_final <- preds_glm_final %>% 
+  mutate(covid_prediction_glm =
+           case_when(
+             preds_glm_final < cutoff_glm ~ 0,
+             preds_glm_final >= cutoff_glm ~ 1
+           )
+         )
+
+```
+
+```{r}
+model_eval_model_glm <- preds_glm_final %>% 
+  filter(covid_label == 0 | covid_label == 1)
+
+model_eval_model_glm_table <- data.frame("target" = c(model_eval_model_glm$covid_label),
+                                  "prediction"= c(model_eval_model_glm$covid_prediction_glm)) 
+
+model_eval_model_glm_table <- evaluate(model_eval_model_glm_table,
+                 target_col = "target",
+                 prediction_col = "prediction",
+                 type = "binomial")
+
+```
+
+
+# Comparisons {#compare}
 ```{r}
 model_eval_model_xgboost[,1:7]
 ```
 
+```{r}
+model_eval_model_glm_table[,1:7]
+```
 From Peter
 Week 8 results on test: 
 
@@ -423,7 +547,7 @@ Week 8 results on test:
 
 # Error Analysis {#eval}
 
-
+## xgboost errors
 ```{r}
 error_analysis <- predictions_errors %>%
  mutate(results =  case_when(
@@ -450,13 +574,40 @@ all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = result
 
 ```
 
+## glm error analysis
+```{r}
+error_analysis_glm <- model_eval_model_glm %>%
+ mutate(results =  case_when(
+    covid_label == 0 & covid_prediction_glm == 0 ~ "True Negative",
+    covid_label == 1 & covid_prediction_glm == 1 ~ "True Positive",
+    covid_label == 0 & covid_prediction_glm == 1 ~ "False Positive",
+    covid_label == 1 & covid_prediction_glm == 0 ~ "False Negative"
+  ))
+```
 
+```{r, message = FALSE}
 
+tp_model_glm <- cc_by_results(error_analysis_glm, "True Positive")
+tn_model_glm <- cc_by_results(error_analysis_glm, "True Negative") 
+fp_model_glm <- cc_by_results(error_analysis_glm, "False Positive") 
+fn_model_glm <- cc_by_results(error_analysis_glm, "False Negative") 
+
+```
+
+# Model outputs {#output}
 ## xgboost model Output
 ```{r}
 #Our COVID prediction is labeled in the column final_predictions
-group3_predictions_wk10_xgboost <- covid_dataset 
+group3_predictions_wk10_xgboost <-  covid_dataset
 write_csv(group3_predictions_wk10_xgboost, "./analysis/group3_predictions_wk10_xgboost")
+```
+
+
+## glm model Output
+```{r}
+#Our COVID prediction is labeled in the column final_predictions
+group3_predictions_wk10_glm <- preds_glm_final 
+write_csv(group3_predictions_wk10_glm, "./analysis/group3_predictions_wk10_glm")
 ```
 
 ### Session Information
