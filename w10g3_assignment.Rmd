@@ -174,11 +174,8 @@ Must keep the final dataset named covid_dataset to work with further analysis co
 ```{r}
 
 
-concepts
-relationship
-
 ##########
-#turn cheif complaint into onology terms:
+#turn chief complaint into ontology terms:
 
 #save clean dataset as temp
 covid_dataset2 <- covid_dataset
@@ -214,7 +211,7 @@ covid_dataset6$ontology_id <- gsub( "-B", "", covid_dataset6$ontology_id)
 #remap to ontology concepts:
 covid_dataset7 <- left_join(covid_dataset6, concepts, by=c('ontology_id' = 'conceptID'), ignore_case = TRUE)
 
-#clean unmapped terms to base cheif complaint:
+#clean unmapped terms to base chief complaint:
 covid_dataset8 <- covid_dataset7%>%
   mutate(defaultDescription = case_when(
       is.na(defaultDescription) ~ cc,
@@ -232,41 +229,14 @@ colnames(covid_dataset) <- c('id', 'cc', 'covid_label')
 #Making empty chief complaint clearer
 covid_dataset$cc[which(is.na(covid_dataset$cc))] <-  "No CC provided"
 
-covid_dataset
 
 
 ```
-
-
-```{r combine ccs}
-
-#Combine concepts that are similar but different encodings of the same chief complaint to account for different spellings and misspellings or abbreviations
-
-# sob_concept <- c("SOB", 	"SOB - SHORTNESS OF BREATH", "SHORT OF BREATH", "SHORT OF BREATHE", "SHORTNESS OF BREATH")
-# fever_concept <- c("FEVER", "FEVERS")
-# ili_concept <- c("\\bILI\\b", "FLU", "FLU-LIKE SYMPTOMS", "ILI - INFLUENZE LIKE ILLNESS", 	"INFLUENZA LIKE ILLNESS", "INFLUENZA", "I L I", "ILI")
-# cough_concept <- c("COUGH", "COUGH/CONGESTION", "Productive cough", "PRODUCTIVE COUGH")
-# hypoxia_concept <- c("HYPOXEMIA", "HYPOXIA", "HYPOXIC")
-# dyspnea_concept <- c("DYPNEA", "DYSPNEA")
-# doe_concept <- c("DOE - DYSPNEA ON EXERTION", "DYSPNEA ON EXERTION")
-# resp_dis_concept <- c("RESP DISTRESS", 	"RESPIRATORY DISTRESS")
-# 
-# combined_cc_data <- covidclass_70percentlabels %>% 
-#   mutate(grouped_cc = case_when(
-#     chief_complaint_1 %in% sob_concept ~ "shortness of breath",
-#     chief_complaint_1 %in% fever_concept ~ "fever",
-#     chief_complaint_1 %in% ili_concept ~ "ili",
-#     chief_complaint_1 %in% cough_concept ~ "cough",
-#     chief_complaint_1 %in% hypoxia_concept ~ "hypoxia",
-#     chief_complaint_1 %in% dyspnea_concept ~ "dyspnea",
-#     chief_complaint_1 %in% doe_concept ~ "doe",
-#     chief_complaint_1 %in% resp_dis_concept ~ "respiratory distress",
-#     TRUE                           ~ .$chief_complaint_1
-#     )
-#   )
-
+```{r, results = 'asis'}
+knitr::kable(head(covid_dataset, 15))
 
 ```
+
 
 ## Create labeled datasets
 ```{r}
@@ -556,7 +526,7 @@ plot_glm_final
 summary(preds_glm_final$preds_glm_final)
 ```
 ```{r}
-cutoff_glm <- 0.05
+cutoff_glm <- 0.061
 ```
 
 We choose `r cutoff_glm` as the cutoff for labeling a chief complaint as positive.
@@ -605,6 +575,14 @@ Week 8 results on test:
 * accuracy    0.828239609
 * f1    0.171091445
 
+```{r}
+model_eval_model_glm_table[[18]]
+model_eval_model_xgboost[[18]]
+```
+```{r}
+model_eval_model_glm_table[[17]]
+model_eval_model_xgboost[[17]]
+```
 
 
 # Error Analysis {#eval}
