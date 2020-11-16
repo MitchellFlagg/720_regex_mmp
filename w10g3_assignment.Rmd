@@ -207,15 +207,15 @@ covid_dataset6 <- covid_dataset5%>%
   )
 
 #clean concept IDs to remove laterality and re-map cleaned IDs to base ontology concepts
-covid_dataset7$ontology_id <- gsub( "-L", "", covid_dataset7$ontology_id)
-covid_dataset7$ontology_id <- gsub( "-R", "", covid_dataset7$ontology_id)
-covid_dataset7$ontology_id <- gsub( "-B", "", covid_dataset7$ontology_id)
+covid_dataset6$ontology_id <- gsub( "-L", "", covid_dataset6$ontology_id)
+covid_dataset6$ontology_id <- gsub( "-R", "", covid_dataset6$ontology_id)
+covid_dataset6$ontology_id <- gsub( "-B", "", covid_dataset6$ontology_id)
 
 #remap to ontology concepts:
-covid_dataset8 <- left_join(covid_dataset7, concepts, by=c('ontology_id' = 'conceptID'), ignore_case = TRUE)
+covid_dataset7 <- left_join(covid_dataset6, concepts, by=c('ontology_id' = 'conceptID'), ignore_case = TRUE)
 
 #clean unmapped terms to base cheif complaint:
-covid_dataset9 <- covid_dataset8%>%
+covid_dataset8 <- covid_dataset7%>%
   mutate(defaultDescription = case_when(
       is.na(defaultDescription) ~ cc,
       TRUE              ~ defaultDescription
@@ -223,7 +223,7 @@ covid_dataset9 <- covid_dataset8%>%
   )
 
 #reduce to vital information and clean for model ingestion:
-covid_dataset9 <- covid_dataset9 %>% select(id, defaultDescription, ontology_id, covid_label)
+covid_dataset9 <- covid_dataset8 %>% select(id, defaultDescription, ontology_id, covid_label)
 
 covid_dataset <- covid_dataset9 %>% select(id, defaultDescription, covid_label)
 
