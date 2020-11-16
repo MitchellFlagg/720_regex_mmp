@@ -173,6 +173,68 @@ covid_dataset <- covidclass_70percentlabels %>%
 Must keep the final dataset named covid_dataset to work with further analysis code below.
 ```{r}
 
+
+concepts
+relationship
+
+##########
+#turn cheif complaint into onology terms:
+
+#save clean dataset as temp
+covid_dataset2 <- covid_dataset
+
+covid_dataset2$cc <- as.character(covid_dataset2$cc)
+
+#join cleaned terms with qalist misspelled ontology terms
+covid_dataset3 <- left_join(covid_dataset2, qalist, by=c('cc' = 'description'), ignore_case = TRUE) 
+
+#join previous result with classic ontology terms
+covid_dataset4 <- left_join(covid_dataset3, cclist, by=c('cc' = 'description'), ignore_case = TRUE)
+
+#get one column with term and one column with concept ID:
+covid_dataset5 <- covid_dataset4 %>% 
+  mutate(ontology_term = case_when(
+      is.na(defaultDescription.x) ~ defaultDescription.y,
+      TRUE                         ~ defaultDescription.x
+    ) 
+  )
+    
+covid_dataset6 <- covid_dataset5%>%
+  mutate(ontology_id = case_when(
+      is.na(conceptID.x) ~ conceptID.y,
+      TRUE              ~ conceptID.x
+    ) 
+  )
+
+#clean concept IDs to remove laterality and re-map cleaned IDs to base ontology concepts
+covid_dataset7$ontology_id <- gsub( "-L", "", covid_dataset7$ontology_id)
+covid_dataset7$ontology_id <- gsub( "-R", "", covid_dataset7$ontology_id)
+covid_dataset7$ontology_id <- gsub( "-B", "", covid_dataset7$ontology_id)
+
+#remap to ontology concepts:
+covid_dataset8 <- left_join(covid_dataset7, concepts, by=c('ontology_id' = 'conceptID'), ignore_case = TRUE)
+
+#clean unmapped terms to base cheif complaint:
+covid_dataset9 <- covid_dataset8%>%
+  mutate(defaultDescription = case_when(
+      is.na(defaultDescription) ~ cc,
+      TRUE              ~ defaultDescription
+    ) 
+  )
+
+#reduce to vital information and clean for model ingestion:
+covid_dataset9 <- covid_dataset9 %>% select(id, defaultDescription, ontology_id, covid_label)
+
+covid_dataset <- covid_dataset9 %>% select(id, defaultDescription, covid_label)
+
+colnames(covid_dataset) <- c('id', 'cc', 'covid_label')
+
+#Making empty chief complaint clearer
+covid_dataset$cc[which(is.na(covid_dataset$cc))] <-  "No CC provided"
+
+covid_dataset
+
+
 ```
 
 
@@ -494,7 +556,7 @@ plot_glm_final
 summary(preds_glm_final$preds_glm_final)
 ```
 ```{r}
-cutoff_glm <- 0.07
+cutoff_glm <- 0.05
 ```
 
 We choose `r cutoff_glm` as the cutoff for labeling a chief complaint as positive.
