@@ -1152,13 +1152,13 @@ all_results_model_1_wide &lt;- pivot_wider(all_results_model_1, names_from = res
 <h2>xgboost model Output</h2>
 <pre class="r"><code>#Our COVID prediction is labeled in the column final_predictions
 group3_predictions_wk10_xgboost &lt;-  covid_dataset
-write_csv(group3_predictions_wk10_xgboost, &quot;./analysis/group3_predictions_wk10_xgboost&quot;)</code></pre>
+write_csv(group3_predictions_wk10_xgboost, &quot;./analysis/group3_predictions_wk10_xgboost.csv&quot;)</code></pre>
 </div>
 <div id="glm-model-output" class="section level2">
 <h2>glm model Output</h2>
 <pre class="r"><code>#Our COVID prediction is labeled in the column final_predictions
 group3_predictions_wk10_glm &lt;- preds_glm_final 
-write_csv(group3_predictions_wk10_glm, &quot;./analysis/group3_predictions_wk10_glm&quot;)</code></pre>
+write_csv(group3_predictions_wk10_glm, &quot;./analysis/group3_predictions_wk10_glm.csv&quot;)</code></pre>
 <div id="session-information" class="section level3">
 <h3>Session Information</h3>
 <pre class="r"><code>sessionInfo()</code></pre>

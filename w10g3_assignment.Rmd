@@ -639,7 +639,7 @@ fn_model_glm <- cc_by_results(error_analysis_glm, "False Negative")
 ```{r}
 #Our COVID prediction is labeled in the column final_predictions
 group3_predictions_wk10_xgboost <-  covid_dataset
-write_csv(group3_predictions_wk10_xgboost, "./analysis/group3_predictions_wk10_xgboost")
+write_csv(group3_predictions_wk10_xgboost, "./analysis/group3_predictions_wk10_xgboost.csv")
 ```
 
 
@@ -647,7 +647,7 @@ write_csv(group3_predictions_wk10_xgboost, "./analysis/group3_predictions_wk10_x
 ```{r}
 #Our COVID prediction is labeled in the column final_predictions
 group3_predictions_wk10_glm <- preds_glm_final 
-write_csv(group3_predictions_wk10_glm, "./analysis/group3_predictions_wk10_glm")
+write_csv(group3_predictions_wk10_glm, "./analysis/group3_predictions_wk10_glm.csv")
 ```
 
 ### Session Information
