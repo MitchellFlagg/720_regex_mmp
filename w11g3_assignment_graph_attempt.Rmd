@@ -40,10 +40,13 @@ library(pROC)
 library(caTools)
 library(tm)
 library(SnowballC)
+library(tidygraph)
+library(ggraph)
 ```
 
 # Functions
 ```{r custom functions, echo=FALSE}
+
 search_assign_by_cc <- function(data, search_terms, column_to_search) {
   pasted_match <- paste(search_terms, collapse = "|")
   
@@ -52,6 +55,7 @@ search_assign_by_cc <- function(data, search_terms, column_to_search) {
   
   return(searched_and_assigned)
 }
+
 covid_prediction_count <- function(data) {
   prediction_count <- data %>% 
   group_by(covid_guess) %>%
@@ -59,6 +63,7 @@ covid_prediction_count <- function(data) {
   
   return(prediction_count)
 }
+
 covid_model_comparison <- function(data_predictions, data_w_labels) {
   only_labeled_rows <- data_w_labels %>%
     filter(label == "0"| label == "1")
@@ -84,6 +89,7 @@ covid_model_comparison <- function(data_predictions, data_w_labels) {
  )
   return(error_analysis)
 }
+
 covid_model_comparison_table <- function(data_with_status_and_prediction){
   real_and_prediction <- data_with_status_and_prediction %>%
   group_by(covid_status, covid_prediction) %>%
@@ -91,16 +97,22 @@ covid_model_comparison_table <- function(data_with_status_and_prediction){
   
    return(real_and_prediction)
 }
+
 evaluation_table <- function(covid_model){
+
 model_basic_table <- data.frame("target" = c(covid_model$covid_status),
                                   "prediction"= c(covid_model$covid_prediction)) 
+
 model_eval <- evaluate(model_basic_table,
                  target_col = "target",
                  prediction_col = "prediction",
                  type = "binomial")
+
 return(model_eval)
 }
+
 #Function to sort results by cc
+
 cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
   results_filtered <- model %>%
   filter(results == results_factor)
@@ -111,34 +123,45 @@ cc_by_results <- function(model, results_factor, cc_number_to_return = 10) {
   arrange(desc(count)) %>%
   head(cc_number_to_return)
   
+
   return(print(top_cc))
 }
 ```
 
 ## Load data files
 ```{r load files, warning=FALSE, message=FALSE}
+
 covidclass_70percentlabels <- read.table("data_do_not_alter/covidclass_70percentlabels.csv",  na.strings = "", header = TRUE, sep = "|", quote = "", comment.char = "", col.names = c("id", "chief_complaint_1", "chief_complaint_2", "thirty_label", "seventy_label"))
+
 cclist <- read_delim("ontology/presentingproblem/CCList.tsv", 
     "\t", escape_double = FALSE, trim_ws = TRUE)
+
 qalist <- read_delim("ontology/presentingproblem/QAList.tsv", 
     "\t", escape_double = FALSE, trim_ws = TRUE)
+
 concepts <- read_delim("ontology/presentingproblem/concepts.tsv", 
     "\t", escape_double = FALSE, trim_ws = TRUE)
+
 relationship <- read_delim("ontology/presentingproblem/relationship.tsv", 
     "\t", escape_double = FALSE, trim_ws = TRUE)
 ```
 
 ## Clean Data
 ```{r clean data}
+
 #Cleaning rows 4010 and 6713 with extra quotation marks
 covidclass_70percentlabels[4010,1] <- 4010 
 covidclass_70percentlabels[4010,5] <- 0 
 covidclass_70percentlabels[6713,1] <- 6713
 covidclass_70percentlabels[6713,5] <- 0 
+
 #Making empty chief complaint clearer
 covidclass_70percentlabels$chief_complaint_1[which(is.na(covidclass_70percentlabels$chief_complaint_1))] <-  "No CC provided"
+
 covidclass_70percentlabels$id <- as.numeric(covidclass_70percentlabels$id)
+
 #Clean column names and drop unneeded columns
+
 covid_dataset <- covidclass_70percentlabels %>% 
    mutate(covid_label = case_when(
     seventy_label == "0" ~ 0,
@@ -151,16 +174,20 @@ covid_dataset <- covidclass_70percentlabels %>%
 # New Concept mapping
 
 Must keep the final dataset named covid_dataset to work with further analysis code below.
-```{r}
+```{r, new concept mapping}
+
+
 ##########
 #turn chief complaint into ontology terms:
-#save clean dataset as temp
-#covid_dataset2 <- covid_dataset
+
 covid_dataset$cc <- as.character(covid_dataset$cc)
+
 #join cleaned terms with qalist misspelled ontology terms
 covid_dataset %<>% left_join(qalist, by=c('cc' = 'description'), ignore_case = TRUE) 
+
 #join previous result with classic ontology terms
 covid_dataset %<>%  left_join(cclist, by=c('cc' = 'description'), ignore_case = TRUE)
+
 #get one column with term and one column with concept ID:
 covid_dataset %<>%  
   mutate(ontology_term = case_when(
@@ -175,12 +202,15 @@ covid_dataset %<>%
       TRUE              ~ conceptID.x
     ) 
   )
+
 #clean concept IDs to remove laterality and re-map cleaned IDs to base ontology concepts
 covid_dataset$ontology_id <- gsub( "-L", "", covid_dataset$ontology_id)
 covid_dataset$ontology_id <- gsub( "-R", "", covid_dataset$ontology_id)
 covid_dataset$ontology_id <- gsub( "-B", "", covid_dataset$ontology_id)
+
 #remap to ontology concepts:
 covid_dataset %<>% left_join(concepts, by=c('ontology_id' = 'conceptID'), ignore_case = TRUE)
+
 #clean unmapped terms to base chief complaint:
 covid_dataset %<>% 
   mutate(defaultDescription = case_when(
@@ -188,16 +218,44 @@ covid_dataset %<>%
       TRUE              ~ defaultDescription
     ) 
   )
+
 #reduce to vital information and clean for model ingestion:
 covid_dataset %<>%  select(id, defaultDescription, ontology_id, covid_label)
-covid_dataset %<>%  select(id, defaultDescription, covid_label)
-colnames(covid_dataset) <- c('id', 'cc', 'covid_label')
+
+colnames(covid_dataset) <- c('id', 'cc', 'ontology_id_base', 'covid_label')
+
 #Making empty chief complaint clearer
 covid_dataset$cc[which(is.na(covid_dataset$cc))] <-  "No CC provided"
+
+covid_dataset$ontology_id_base <- as.numeric(covid_dataset$ontology_id_base)
 ```
 
 ```{r, results = 'asis'}
 knitr::kable(head(covid_dataset, 15))
+
+```
+```{r, graph relationships}
+#Join to parent id to prep for graphical analysis
+
+covid_dataset %<>% left_join(relationship, by=c('ontology_id_base' = 'childID'))
+
+```
+
+```{r, transform to tidy graph format}
+
+graph_prep_covid <- covid_dataset %>% 
+  rename(from = 'ontology_id_base') %>% 
+  rename(to = 'parentID')
+
+graph_covid <- as_tbl_graph(graph_prep_covid)
+
+graph_covid
+
+```
+```{r}
+ggraph(graph_covid, layout = 'fr') + 
+  geom_edge_link() + 
+  geom_node_point()
 ```
 
 
@@ -205,7 +263,9 @@ knitr::kable(head(covid_dataset, 15))
 ```{r}
 labeled_data <- covid_dataset %>% 
   filter(!is.na(covid_label)) 
+
 labeled_data_for_glmnet <- labeled_data
+
 ```
 
 
@@ -213,61 +273,86 @@ labeled_data_for_glmnet <- labeled_data
 # Create a corpus for labeled data
 ```{r corpus creation}
 #https://www.pluralsight.com/guides/machine-learning-text-data-using-r
+
 corpus <-  Corpus(VectorSource(labeled_data$cc))
 corpus[[1]][1]  
+
 corpus <-  tm_map(corpus, PlainTextDocument)
+
 corpus  <-  tm_map(corpus, tolower)
   
+
 corpus <- tm_map(corpus, removePunctuation)
 corpus[[1]][1]  
+
 corpus <-  tm_map(corpus, removeWords, c(stopwords("english")))
 corpus[[1]][1] 
+
 corpus <-  tm_map(corpus, stemDocument)
 corpus[[1]][1] 
+
 frequencies  <-  DocumentTermMatrix(corpus)
+
 #Choose value for your sparse terms cutoff
 sparse_term_cutoff <- 0.995
+
 sparse <-  removeSparseTerms(frequencies, sparse_term_cutoff)
+
 tSparse <-  as.data.frame(as.matrix(sparse))
 colnames(tSparse) <-  make.names(colnames(tSparse))
+
 columns_to_keep <- colnames(tSparse)
+
 # Add back covid label to sparse term dataframe 
 tSparse$covid_label <-  labeled_data$covid_label
 ```
 ## Test and Train data for xgboost
 ```{r divide to test and train}
+
 set.seed(888)
 split  <-  sample.split(tSparse$covid_label, SplitRatio = 0.7)
 trainSparse  <-  subset(tSparse, split==TRUE)
 testSparse <-  subset(tSparse, split==FALSE)
+
+
 ```
 
 ## Non linear model with xgboost
 
 ### Train model
 ```{r}
+
 #Drop the covid_label from being in the training
 data_matrix <- as.matrix(trainSparse[,colnames(trainSparse) != "covid_label"])
 output_vector  <-  as.matrix(trainSparse[,"covid_label"]) 
+
 bst <- xgboost(data = data_matrix, label = output_vector, scale_pos_weight = 20, nrounds = 20,objective = "binary:logistic")
 ```
 
 ### Use test data
 ```{r}
+
 data_matrix_test <- as.matrix(testSparse[,colnames(testSparse) != "covid_label"])
+
 pred <- predict(bst, data_matrix_test)
+
+
 # Pick a prediction cutoff
 prediction_cutoff <- 0.5
 prediction <- as.numeric(pred > prediction_cutoff)
 ```
 
 ```{r}
+
 test_data <- data.frame(testSparse)
 test_data <- rownames_to_column(test_data, var = "id")
 prediction <- data.frame(prediction)
+
 data_and_prediction <-cbind(test_data, prediction)
+
 small_d_and_p <- data_and_prediction %>% 
   select("id", "prediction", "covid_label")
+
 #Small confusion matrix
 table(small_d_and_p$prediction, small_d_and_p$covid_label)
 ```
@@ -276,18 +361,31 @@ table(small_d_and_p$prediction, small_d_and_p$covid_label)
 
 ```{r}
 corpus_f <-  Corpus(VectorSource(covid_dataset$cc))
+
 corpus_f <-  tm_map(corpus_f, PlainTextDocument)
+
 corpus_f  <-  tm_map(corpus_f, tolower)
+
 corpus_f <- tm_map(corpus_f, removePunctuation)
+
+
 corpus_f <-  tm_map(corpus_f, removeWords, c(stopwords("english")))
+
 corpus_f <-  tm_map(corpus_f, stemDocument)
  
+
 frequencies_f  <-  DocumentTermMatrix(corpus_f)
+
 frequencies_f_all_columns <-  as.data.frame(as.matrix(frequencies_f))
+
 full_data_top_columns <- frequencies_f_all_columns %>% 
   select(columns_to_keep)
+
+
 full_data_top_columns$covid_label <-  (covid_dataset$covid_label)
+
 data_matrix_full <- as.matrix(full_data_top_columns[,colnames(full_data_top_columns) != "covid_label"])
+
 pred_full <- predict(bst, data_matrix_full)
 pred_full <- data.frame(pred_full)
 ```
@@ -295,18 +393,22 @@ pred_full <- data.frame(pred_full)
 ## Predicted probabilities and cutoff
 ```{r}
 covid_dataset$model_predictions <- pred_full$pred_full
+
 covid_dataset <- covid_dataset %>% 
   mutate(final_predictions = case_when(
     model_predictions >= prediction_cutoff ~ 1,
     model_predictions < prediction_cutoff ~ 0,
   ))
+
 predictions_errors <- covid_dataset %>% 
   filter(!is.na(covid_label))
+
 table(predictions_errors$covid_label, predictions_errors$final_predictions)
 ```
 ## ROC curves
 ```{r}
 prediction_xgboost_model <- prediction(predictions_errors$final_predictions, predictions_errors$covid_label)
+
 performance_xgboost_model <- performance(prediction_xgboost_model,"tpr","fpr")
 plot(performance_xgboost_model,colorize=FALSE)
 ```
@@ -315,27 +417,35 @@ plot(performance_xgboost_model,colorize=FALSE)
 ```{r}
 model_xgboost <- data.frame("target" = c(predictions_errors$covid_label),
                                   "prediction"= c(predictions_errors$final_predictions)) 
+
 model_eval_model_xgboost <- evaluate(model_xgboost,
                  target_col = "target",
                  prediction_col = "prediction",
                  type = "binomial")
+
 ```
 
 
 # Linear Model with glmnet analysis pipeline
 ```{r}
 #Using text2vec example as guide
+
 # Labeled data with week 6 predictions
+
 #Transform to data.table set key to id
 glmnet_covid_dataset <- setDT(labeled_data_for_glmnet)
+
 setkey(glmnet_covid_dataset, id)
+
 #Set seed and divid data with labels into test and train data
 set.seed(888)
 all_ids <-  glmnet_covid_dataset$id
 train_ids <- sample(all_ids, 1300)
 test_ids <- setdiff(all_ids, train_ids)
+
 train_glm <-  glmnet_covid_dataset[J(train_ids)]
 test_glm <-  glmnet_covid_dataset[J(test_ids)]
+
 ```
 
 ### Vectorization
@@ -343,23 +453,27 @@ test_glm <-  glmnet_covid_dataset[J(test_ids)]
 # define preprocessing function and tokenization function
 prep_fun <-  tolower
 tok_fun <-  word_tokenizer
+
 it_train_glm <- itoken(train_glm$cc, 
              preprocessor = prep_fun, 
              tokenizer = tok_fun, 
              ids = train_glm$id, 
              progressbar = FALSE)
+
 vocab_glm <- create_vocabulary(it_train_glm)
 ```
 
 ### Create Document Term Matrix
 ```{r}
 vectorizer_glm <- vocab_vectorizer(vocab_glm)
+
 dtm_train_glm  <-  create_dtm(it_train_glm, vectorizer_glm)
 ```
 
 ### Fit first model
 ```{r}
 NFOLDS <-  4
+
 glmnet_classifier <-  cv.glmnet(x = dtm_train_glm, y = train_glm[['covid_label']], 
                               family = 'binomial', 
                               # L1 penalty
@@ -372,6 +486,7 @@ glmnet_classifier <-  cv.glmnet(x = dtm_train_glm, y = train_glm[['covid_label']
                               thresh = 1e-3,
                               # again lower number of iterations for faster training
                               maxit = 1e3)
+
 ```
 
 ```{r}
@@ -380,11 +495,16 @@ plot(glmnet_classifier)
 
 ### Trying model on test data
 ```{r}
+
 it_test_glm <-  tok_fun(prep_fun(test_glm$cc))
+
 it_test_glm  <-  itoken(it_test_glm, ids = test_glm$id, progressbar = FALSE)
          
+
 dtm_test_glm <-  create_dtm(it_test_glm, vectorizer_glm)
+
 preds_glm  <-  predict(glmnet_classifier, dtm_test_glm, type = 'response')[,1]
+
 ```
 
 ```{r}
@@ -397,25 +517,34 @@ predict_w_id_status <-  predict_with_id %>%
 
 ```{r}
 #Source https://rviews.rstudio.com/2019/03/01/some-r-packages-for-roc-curves/
+
 pred_glm <- prediction(predict_w_id_status$preds_glm, predict_w_id_status$covid_label)
 perf_glm <- performance(pred_glm,"tpr","fpr")
 plot(perf_glm,colorize=FALSE)
+
 ```
 
 ```{r}
 preds_glm_final <-  tok_fun(prep_fun(covid_dataset$cc))
+
 preds_glm_final  <-  itoken(preds_glm_final, ids = preds_glm_final$id, progressbar = FALSE)
          
+
 dtm_week_glm_final <-  create_dtm(preds_glm_final, vectorizer_glm)
+
 preds_glm_final  <-  predict(glmnet_classifier, dtm_week_glm_final, type = 'response')[,1]
+
 preds_glm_final <-  data.frame(preds_glm_final)
 preds_glm_final <- rownames_to_column(preds_glm_final, var = "id")
 preds_glm_final$id <- as.numeric(preds_glm_final$id)
 preds_glm_final <-  preds_glm_final %>%
   left_join(labeled_data_for_glmnet, by = "id")
+
 plot_glm_final <- preds_glm_final %>% 
   ggplot(aes(preds_glm_final)) + geom_histogram()
+
 plot_glm_final
+
 summary(preds_glm_final$preds_glm_final)
 ```
 
@@ -432,17 +561,21 @@ preds_glm_final <- preds_glm_final %>%
              preds_glm_final >= cutoff_glm ~ 1
            )
          )
+
 ```
 
 ```{r}
 model_eval_model_glm <- preds_glm_final %>% 
   filter(covid_label == 0 | covid_label == 1)
+
 model_eval_model_glm_table <- data.frame("target" = c(model_eval_model_glm$covid_label),
                                   "prediction"= c(model_eval_model_glm$covid_prediction_glm)) 
+
 model_eval_model_glm_table <- evaluate(model_eval_model_glm_table,
                  target_col = "target",
                  prediction_col = "prediction",
                  type = "binomial")
+
 ```
 
 
@@ -489,12 +622,19 @@ error_analysis <- predictions_errors %>%
 ```
 
 ```{r, message = FALSE}
+
 tp_model_1 <- cc_by_results(error_analysis, "True Positive")
 tn_model_1 <- cc_by_results(error_analysis, "True Negative") 
 fp_model_1 <- cc_by_results(error_analysis, "False Positive") 
 fn_model_1 <- cc_by_results(error_analysis, "False Negative") 
+
 all_results_model_1 <- bind_rows(tp_model_1, tn_model_1, fp_model_1, fn_model_1)
+
 all_results_model_1_wide <- pivot_wider(all_results_model_1, names_from = results, values_from = count, values_fill = 0)
+
+
+
+
 ```
 
 ## glm error analysis
@@ -509,10 +649,12 @@ error_analysis_glm <- model_eval_model_glm %>%
 ```
 
 ```{r, message = FALSE}
+
 tp_model_glm <- cc_by_results(error_analysis_glm, "True Positive")
 tn_model_glm <- cc_by_results(error_analysis_glm, "True Negative") 
 fp_model_glm <- cc_by_results(error_analysis_glm, "False Positive") 
 fn_model_glm <- cc_by_results(error_analysis_glm, "False Negative") 
+
 ```
 
 # Model outputs {#output}
@@ -536,15 +678,3 @@ write_csv(group3_predictions_wk11_glm, "./analysis/group3_predictions_wk11_glm.c
 ```{r session information}
 sessionInfo()
 ```
-© 2020 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Help
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
