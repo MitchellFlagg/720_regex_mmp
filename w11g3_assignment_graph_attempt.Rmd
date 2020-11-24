@@ -42,6 +42,7 @@ library(tm)
 library(SnowballC)
 library(tidygraph)
 library(ggraph)
+library(igraph)
 ```
 
 # Functions
@@ -230,14 +231,33 @@ covid_dataset$cc[which(is.na(covid_dataset$cc))] <-  "No CC provided"
 covid_dataset$ontology_id_base <- as.numeric(covid_dataset$ontology_id_base)
 ```
 
-```{r, results = 'asis'}
-knitr::kable(head(covid_dataset, 15))
+```{r, examine missing terms}
+ontology_bins <- covid_dataset %>% 
+  dplyr::group_by(ontology_id_base, cc) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+ontology_bins
+
+examine_missing_ontology <- ontology_bins %>% 
+  filter(is.na(ontology_id_base))
+
+examine_missing_ontology
 
 ```
 ```{r, graph relationships}
 #Join to parent id to prep for graphical analysis
 
-covid_dataset %<>% left_join(relationship, by=c('ontology_id_base' = 'childID'))
+covid_dataset_with_parent <- covid_dataset %>%  dplyr::left_join(relationship, by= c('ontology_id_base' = 'childID'))
+
+
+summary_relationships <- relationship %>% 
+  group_by(childID, parentID) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+
+
 
 ```
 
@@ -247,15 +267,68 @@ graph_prep_covid <- covid_dataset %>%
   rename(from = 'ontology_id_base') %>% 
   rename(to = 'parentID')
 
-graph_covid <- as_tbl_graph(graph_prep_covid)
+graph_covid <- as_tbl_graph(graph_prep_covid, directed = TRUE)
 
 graph_covid
 
 ```
+
 ```{r}
-ggraph(graph_covid, layout = 'fr') + 
-  geom_edge_link() + 
-  geom_node_point()
+ggraph(graph_covid, layout = 'kk') + 
+  geom_edge_link() +
+    geom_node_point()
+```
+
+```{r}
+find_sink <- graph_covid %>%
+  mutate(sink = node_is_sink()) 
+
+
+
+as_data_frame(find_sink, "vertices")
+```
+```{r, find my parent function}
+find_my_parent <- function(id) {
+  parent <- relationship %>% 
+    dplyr::filter(childID == id) %>% 
+    dplyr::select(parentID)
+  
+  
+  
+  return(parent[[1, 1]])
+}
+
+find_my_parent(315596001)
+```
+```{r}
+do_i_have_a_parent <- function(id) {
+  parent_count <- relationship %>% 
+    dplyr::filter(childID == id) %>% 
+    nrow()
+  
+  
+  return(parent_count > 0)
+}
+
+do_i_have_a_parent(736004
+)
+```
+```{r}
+grandest_parent <- function(id) {
+  if(do_i_have_a_parent(id)) {
+    return(grandest_parent(find_my_parent(id)))
+  }
+  else{
+    return(id)
+  }
+}
+
+grandest_parent(250171008)
+```
+```{r}
+top_parent <- covid_dataset %>% 
+  rowwise() %>% 
+  mutate(top_parent_id = grandest_parent(ontology_id_base))
 ```
 
 
