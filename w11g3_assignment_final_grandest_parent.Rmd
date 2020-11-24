@@ -245,48 +245,10 @@ examine_missing_ontology <- ontology_bins %>%
 examine_missing_ontology
 
 ```
-```{r, graph relationships}
-#Join to parent id to prep for graphical analysis
-
-covid_dataset_with_parent <- covid_dataset %>%  dplyr::left_join(relationship, by= c('ontology_id_base' = 'childID'))
-
-
-summary_relationships <- relationship %>% 
-  group_by(childID, parentID) %>% 
-  summarise(count = n()) %>% 
-  arrange(desc(count))
 
 
 
 
-```
-
-```{r, transform to tidy graph format}
-
-graph_prep_covid <- covid_dataset %>% 
-  rename(from = 'ontology_id_base') %>% 
-  rename(to = 'parentID')
-
-graph_covid <- as_tbl_graph(graph_prep_covid, directed = TRUE)
-
-graph_covid
-
-```
-
-```{r}
-ggraph(graph_covid, layout = 'kk') + 
-  geom_edge_link() +
-    geom_node_point()
-```
-
-```{r}
-find_sink <- graph_covid %>%
-  mutate(sink = node_is_sink()) 
-
-
-
-as_data_frame(find_sink, "vertices")
-```
 ```{r, find my parent function}
 find_my_parent <- function(id) {
   parent <- relationship %>% 
@@ -325,11 +287,24 @@ grandest_parent <- function(id) {
 
 grandest_parent(250171008)
 ```
+
 ```{r}
-top_parent <- covid_dataset %>% 
-  rowwise() %>% 
-  mutate(top_parent_id = grandest_parent(ontology_id_base))
+#Create top_parent from above data (takes a really long time, saved as csv and then loaded instead)
+# top_parent <- covid_dataset %>% 
+#   rowwise() %>% 
+#   mutate(top_parent_id = grandest_parent(ontology_id_base))
+
+
+#write_csv(top_parent, "./ontology/top_parent.csv")
+
+top_parent <- read_csv("ontology/top_parent.csv")
 ```
+
+```{r}
+#to work with analysis pipeline need dataset to be called covid_dataset
+covid_dataset <- top_parent
+```
+
 
 
 ## Create labeled datasets
@@ -376,8 +351,10 @@ colnames(tSparse) <-  make.names(colnames(tSparse))
 
 columns_to_keep <- colnames(tSparse)
 
-# Add back covid label to sparse term dataframe 
+# Add back ontology columns and covid_label to sparse term dataframe 
 tSparse$covid_label <-  labeled_data$covid_label
+tSparse$ontology_id_base <-  labeled_data$ontology_id_base
+tSparse$top_parent_id <-  labeled_data$top_parent_id
 ```
 ## Test and Train data for xgboost
 ```{r divide to test and train}
@@ -424,7 +401,7 @@ prediction <- data.frame(prediction)
 data_and_prediction <-cbind(test_data, prediction)
 
 small_d_and_p <- data_and_prediction %>% 
-  select("id", "prediction", "covid_label")
+  select("id", "prediction", "covid_label", "ontology_id_base", "top_parent_id")
 
 #Small confusion matrix
 table(small_d_and_p$prediction, small_d_and_p$covid_label)
@@ -456,6 +433,8 @@ full_data_top_columns <- frequencies_f_all_columns %>%
 
 
 full_data_top_columns$covid_label <-  (covid_dataset$covid_label)
+full_data_top_columns$ontology_id_base <-  covid_dataset$ontology_id_base
+full_data_top_columns$top_parent_id <-  covid_dataset$top_parent_id
 
 data_matrix_full <- as.matrix(full_data_top_columns[,colnames(full_data_top_columns) != "covid_label"])
 
@@ -660,8 +639,11 @@ model_eval_model_xgboost[,1:7]
 ```{r}
 model_eval_model_glm_table[,1:7]
 ```
-From Peter
-Week 8 results on test: 
+
+## Prior weeks
+
+
+### Week 8 results on test: 
 
 
 * sensitivity    0.285714286
@@ -670,6 +652,49 @@ Week 8 results on test:
 * NPV    0.948158742
 * accuracy    0.828239609
 * f1    0.171091445
+
+
+
+### Week 10 
+Linear Model
+Training Data  (6539 rows with the labels you were provided)
+sensitivity    	0.229426434
+specificity    	0.966601499
+PPV    		0.30976431
+NPV    		0.950496636
+accuracy    	0.921394709
+f1    		0.263610315
+
+Test/Holdout Data  (2793 rows of the remaining data whose “ground truth” labels you were NOT provided)
+sensitivity    	0.2
+specificity    	0.964163172
+PPV    		0.265625
+NPV    		0.948968105
+accuracy    	0.917651271
+f1    		0.228187919
+
+
+Non-Linear Model (XGBoost)
+Training Data  (6539 rows with the labels you were provided)
+sensitivity   	0.593516209
+specificity    	0.766373412
+PPV    		0.142344498
+NPV    		0.966509143
+accuracy    	0.755773054
+f1   		0.22961891
+
+Reported Training AUC ROC = 0.680
+
+
+Test/Holdout Data  (2793 rows of the remaining data whose “ground truth” labels you were NOT provided)
+sensitivity    	0.570588235
+specificity    	0.777735417
+PPV    		0.142647059
+NPV    		0.965451964
+accuracy    	0.765127103
+f1    		0.228235294
+
+Holdout AUC ROC = 0.697
 
 ```{r}
 model_eval_model_glm_table[[18]]
